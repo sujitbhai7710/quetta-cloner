@@ -641,6 +641,25 @@ def manifest_has_launcher(manifest):
     return has_main and has_launcher
 
 
+def _is_base_apk(path):
+    """True if this APK's manifest has no non-namespaced 'split' attribute
+    (split APKs all declare android:splitName / split=...)."""
+    try:
+        with zipfile.ZipFile(path) as z:
+            manifest = z.read("AndroidManifest.xml")
+    except Exception:
+        return False
+    strings, _utf8, chunks = split_chunks(manifest)
+    for t, c in chunks:
+        if t == RES_XML_START_ELEMENT_TYPE and _element_tag(strings, bytes(c)) == "manifest":
+            for a in parse_attributes(bytes(c)):
+                if (a["ns"] == NO_INDEX and a["name"] < len(strings)
+                        and strings[a["name"]] == "split"):
+                    return False
+            return True
+    return False
+
+
 def resolve_source(apk_path, splits_arg):
     """Return (base_apk, [split_apks], tmp_dir_or_None).
 
@@ -655,7 +674,8 @@ def resolve_source(apk_path, splits_arg):
         apks = sorted(tmp.rglob("*.apk"))
         if not apks:
             sys.exit("no .apk files found inside %s" % apk_path)
-        base = next((p for p in apks if p.name.lower() in ("base.apk", "base-master.apk")), apks[0])
+        bases = [p for p in apks if _is_base_apk(p)]
+        base = bases[0] if bases else max(apks, key=lambda p: p.stat().st_size)
         return base, [p for p in apks if p != base], tmp
     splits = []
     if splits_arg:
@@ -698,7 +718,10 @@ def main(argv=None):
     if apk is None or not apk.is_file():
         sys.exit("source APK not found - pass --apk path/to/Quetta.apk")
     if args.info:
-        dump_info(apk)
+        _b, _s, _t = resolve_source(apk, args.splits)
+        dump_info(_b)
+        if _t:
+            shutil.rmtree(_t, ignore_errors=True)
         return
 
     if args.only:
@@ -716,11 +739,10 @@ def main(argv=None):
     tmp_dir = out_dir / "_tmp"
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    with zipfile.ZipFile(apk) as z:
-        manifest = z.read("AndroidManifest.xml")
-
     # resolve a possible split-APK set (Play base + feature/config splits)
     base_apk, split_apks, tmp_extract = resolve_source(apk, args.splits)
+    with zipfile.ZipFile(base_apk) as z:
+        manifest = z.read("AndroidManifest.xml")
     split_manifests = []
     for sp in split_apks:
         with zipfile.ZipFile(sp) as z:

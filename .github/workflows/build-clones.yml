@@ -63,8 +63,17 @@ jobs:
           gh release download "$APK_SOURCE_TAG" --repo "$GITHUB_REPOSITORY" \
              --pattern "Quetta.apk" --pattern "*.apk" --pattern "*.apks" \
              --pattern "*.xapk" --clobber
-          SRC=$(ls -S *.apks *.xapk *.apk 2>/dev/null | head -1)
-          test -n "$SRC" || { echo "No source APK/APKS found on release $APK_SOURCE_TAG"; exit 1; }
+          # prefer complete bundles (.xapk/.apks) over a bare base .apk
+          SRC=""
+          for pat in "*.xapk" "*.apks" "Quetta.apk" "*.apk"; do
+            for f in $pat; do
+              if [ -f "$f" ]; then SRC="$f"; break 2; fi
+            done
+          done
+          if [ -z "$SRC" ]; then
+            echo "No source APK/APKS found on release $APK_SOURCE_TAG"
+            exit 1
+          fi
           echo "APK_SOURCE_NAME=$SRC" >> "$GITHUB_ENV"
           echo "Source: $SRC ($(du -h "$SRC" | cut -f1))"
 
