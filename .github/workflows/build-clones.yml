@@ -14,9 +14,11 @@ on:
   workflow_call:
     inputs:
       only:
+        description: "Optional comma-separated subset of names from names.txt (empty = all)"
         type: string
         default: ""
       make_release:
+        description: "Also attach every .apk as a separate, raw (non-zip) asset to a GitHub Release"
         type: boolean
         default: true
 
@@ -160,7 +162,6 @@ jobs:
           compression-level: 0
 
   release:
-    if: ${{ inputs.make_release != false }}
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 60
