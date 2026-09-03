@@ -1,0 +1,14 @@
+name: Test12
+on: workflow_dispatch
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify secret usable
+        env:
+          CLONE_KEYSTORE_B64: ${{ secrets.CLONE_KEYSTORE_B64 }}
+        run: |
+          echo "secret length: ${#CLONE_KEYSTORE_B64}"
+          printf '%s' "$CLONE_KEYSTORE_B64" | base64 -d > /tmp/k.keystore
+          ls -la /tmp/k.keystore
