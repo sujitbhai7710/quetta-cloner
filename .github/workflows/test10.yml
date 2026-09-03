@@ -1,0 +1,11 @@
+name: Test10
+on: workflow_dispatch
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: T10 different env key, same secret
+        env:
+          MY_OTHER_KEY: ${{ secrets.CLONE_KEYSTORE_B64 }}
+        run: echo "len=${#MY_OTHER_KEY}"

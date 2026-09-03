@@ -1,0 +1,11 @@
+name: Test11
+on: workflow_dispatch
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: T11 nonexistent secret
+        env:
+          CLONE_KEYSTORE_B64: ${{ secrets.NO_SUCH_SECRET_XYZ }}
+        run: echo "len=${#CLONE_KEYSTORE_B64}"
