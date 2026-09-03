@@ -29,6 +29,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import tempfile
 import threading
 import zipfile
 import zlib
@@ -41,7 +42,9 @@ SIG_FILE_RE = re.compile(r"^META-INF/(MANIFEST\.MF|.*\.(SF|RSA|DSA|EC))$", re.IG
 # --- binary AXML (compiled AndroidManifest.xml) constants ---
 RES_STRING_POOL_TYPE = 0x0001
 RES_XML_TYPE = 0x0003
+RES_XML_RESOURCE_MAP_TYPE = 0x0180
 RES_XML_START_ELEMENT_TYPE = 0x0102
+RES_XML_END_ELEMENT_TYPE = 0x0103
 UTF8_FLAG = 0x100
 TYPE_REFERENCE = 0x01
 TYPE_STRING = 0x03
@@ -249,11 +252,100 @@ def patch_manifest(manifest, suffix, label, extract_libs=True):
                     extract_libs_patched = True
 
     pool_blob = encode_string_pool(pool, utf8)
+
+    # ---- 4. drop Play "distribution format" markers -----------------------
+    # Play-generated base APKs carry meta-data that forces the installer to
+    # demand the config split APKs -> INSTALL_FAILED_MISSING_SPLIT ("app not
+    # compatible with your phone"). Removing them makes the base APK install
+    # standalone.
+    SPLIT_META_KEYS = frozenset((
+        "com.android.vending.splits.required",
+        "com.android.vending.splits",
+        "com.android.stamp.source",
+        "com.android.stamp.type",
+        "com.android.vending.derived.apk.id",
+    ))
+    cleaned, removed_meta, i = [], 0, 0
+    while i < len(chunks):
+        ctype, cbytes = chunks[i]
+        if (ctype == RES_XML_START_ELEMENT_TYPE
+                and _element_tag(strings, bytes(cbytes)) == "meta-data"):
+            name_val = None
+            for a in parse_attributes(bytes(cbytes)):
+                if (a["ns"] != NO_INDEX and a["ns"] < len(pool)
+                        and pool[a["ns"]] == ANDROID_NS
+                        and pool[a["name"]] == "name" and a["dtype"] == TYPE_STRING):
+                    name_val = pool[a["data"]]
+                    break
+            if name_val in SPLIT_META_KEYS:
+                depth, j = 0, i
+                while j < len(chunks):
+                    tj = chunks[j][0]
+                    if tj == RES_XML_START_ELEMENT_TYPE:
+                        depth += 1
+                    elif tj == RES_XML_END_ELEMENT_TYPE:
+                        depth -= 1
+                        if depth == 0:
+                            break
+                    j += 1
+                removed_meta += 1
+                i = j + 1
+                continue
+        cleaned.append(chunks[i])
+        i += 1
+    chunks = cleaned
+
+    # ---- 5. strip Play Feature Delivery split attributes from <manifest> ---
+    # requiredSplitTypes/splitTypes/isolatedSplits make PackageInstaller treat
+    # the base APK as "requires feature-module splits" -> every standalone
+    # install fails with INSTALL_FAILED_MISSING_SPLIT. Remove them.
+    SPLIT_ATTR_IDS = frozenset((0x0101064E, 0x0101064F, 0x0101054B))
+    resmap = None
+    for t, c in chunks:
+        if t == RES_XML_RESOURCE_MAP_TYPE:
+            n = (len(c) - 8) // 4
+            resmap = struct.unpack_from("<%dI" % n, c, 8) if n else ()
+            break
+    mani_chunk = start_elements[0]
+    attr_start, attr_size, attr_count = struct.unpack_from("<HHH", bytes(mani_chunk), 24)
+    attr_base = 16 + attr_start
+    keep_records, removed_positions = [], []
+    for ai in range(attr_count):
+        off = attr_base + ai * attr_size
+        name_idx = struct.unpack_from("<I", mani_chunk, off + 4)[0]
+        rid = resmap[name_idx] if (resmap and name_idx < len(resmap)) else 0
+        if rid in SPLIT_ATTR_IDS:
+            removed_positions.append(ai)
+        else:
+            keep_records.append(bytes(mani_chunk[off:off + attr_size]))
+    split_attrs_removed = len(removed_positions)
+    if split_attrs_removed:
+        def _adjust(value):
+            if value == 0:
+                return 0
+            if value in removed_positions:
+                return 0
+            return value - sum(1 for p in removed_positions if p < value)
+        new_chunk = bytearray(mani_chunk[:attr_base])
+        struct.pack_into("<H", new_chunk, 28, attr_count - split_attrs_removed)
+        for pos, key in ((30, "id"), (32, "class"), (34, "style")):
+            struct.pack_into("<H", new_chunk, pos,
+                             _adjust(struct.unpack_from("<H", new_chunk, pos)[0]))
+        for rec in keep_records:
+            new_chunk += rec
+        struct.pack_into("<I", new_chunk, 4, len(new_chunk))
+        new_chunk += b"\x00" * ((-len(new_chunk)) % 4)
+        for ci, (t, c) in enumerate(chunks):
+            if c is mani_chunk:
+                chunks[ci] = [t, new_chunk]
+                break
+
     body_blob = b"".join(bytes(c) for _t, c in chunks)
     total = 8 + len(pool_blob) + len(body_blob)
     out = struct.pack("<HHI", RES_XML_TYPE, 8, total) + pool_blob + body_blob
     return (bytes(out), old_package, new_package, labels_patched,
-            authorities_patched, extract_libs_patched)
+            authorities_patched, extract_libs_patched, removed_meta,
+            split_attrs_removed)
 
 
 def _local_header(rawf, info):
@@ -302,7 +394,9 @@ def write_patched_apk(src_apk, out_path, patched_manifest, compress_so=False):
             open(src_apk, "rb") as rawf:
         for info in zin.infolist():
             name = info.filename
-            if SIG_FILE_RE.match(name):
+            # drop stale v1 signature files and the Play SourceStamp (its cert
+            # belongs to the original app key and is invalid for our re-sign)
+            if SIG_FILE_RE.match(name) or name == "stamp-cert-sha256":
                 dropped += 1
                 continue
             if name == "AndroidManifest.xml":
@@ -526,10 +620,66 @@ def safe_filename(name):
     return re.sub(r"[^A-Za-z0-9._-]", "_", name)
 
 
+def manifest_has_launcher(manifest):
+    """True if the manifest declares an activity intent-filter with
+    action MAIN + category LAUNCHER (i.e. the app has an icon to launch)."""
+    strings, _utf8, chunks = split_chunks(manifest)
+    has_main = has_launcher = False
+    for t, c in chunks:
+        if t != RES_XML_START_ELEMENT_TYPE:
+            continue
+        if _element_tag(strings, bytes(c)) in ("action", "category"):
+            for a in parse_attributes(bytes(c)):
+                if (a["ns"] != NO_INDEX and a["ns"] < len(strings)
+                        and strings[a["ns"]] == ANDROID_NS
+                        and strings[a["name"]] == "name" and a["dtype"] == TYPE_STRING):
+                    v = strings[a["data"]]
+                    if v == "android.intent.action.MAIN":
+                        has_main = True
+                    elif v == "android.intent.category.LAUNCHER":
+                        has_launcher = True
+    return has_main and has_launcher
+
+
+def resolve_source(apk_path, splits_arg):
+    """Return (base_apk, [split_apks], tmp_dir_or_None).
+
+    Supports: a single standalone APK, a base APK plus a splits directory,
+    or an .apks/.xapk bundle (zip of base + splits).
+    """
+    apk_path = Path(apk_path)
+    if apk_path.suffix.lower() in (".xapk", ".apks", ".apkm", ".zip"):
+        tmp = Path(tempfile.mkdtemp(prefix="apkset_"))
+        with zipfile.ZipFile(apk_path) as z:
+            z.extractall(tmp)
+        apks = sorted(tmp.rglob("*.apk"))
+        if not apks:
+            sys.exit("no .apk files found inside %s" % apk_path)
+        base = next((p for p in apks if p.name.lower() in ("base.apk", "base-master.apk")), apks[0])
+        return base, [p for p in apks if p != base], tmp
+    splits = []
+    if splits_arg:
+        sd = Path(splits_arg)
+        if sd.is_dir():
+            splits = sorted(p for p in sd.glob("*.apk")
+                            if p.resolve() != apk_path.resolve())
+        elif sd.is_file():
+            splits = [sd]
+        else:
+            sys.exit("splits path not found: %s" % splits_arg)
+    else:
+        default_dir = apk_path.parent / "splits"
+        if default_dir.is_dir():
+            splits = sorted(p for p in default_dir.glob("*.apk")
+                            if p.resolve() != apk_path.resolve())
+    return apk_path, splits, None
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(
         description="Batch APK cloner: rename package + app label, re-sign.")
-    ap.add_argument("--apk", help="source APK (default: auto-detect an *.apk in the current dir)")
+    ap.add_argument("--apk", help="source APK / .apks / .xapk (default: auto-detect an *.apk in the current dir)")
+    ap.add_argument("--splits", help="directory (or single file) with the split APKs that belong to the base APK")
     ap.add_argument("--names-file", default="names.txt")
     ap.add_argument("--only", help="comma-separated subset of clone names (overrides --count)")
     ap.add_argument("--count", type=int, default=0, help="only build the first N names from the file")
@@ -569,6 +719,26 @@ def main(argv=None):
     with zipfile.ZipFile(apk) as z:
         manifest = z.read("AndroidManifest.xml")
 
+    # resolve a possible split-APK set (Play base + feature/config splits)
+    base_apk, split_apks, tmp_extract = resolve_source(apk, args.splits)
+    split_manifests = []
+    for sp in split_apks:
+        with zipfile.ZipFile(sp) as z:
+            split_manifests.append((sp, z.read("AndroidManifest.xml")))
+
+    if not manifest_has_launcher(manifest) and not split_apks:
+        sys.exit(
+            "\n!!! This APK is a Play-Store BASE APK without its splits - it cannot\n"
+            "    work standalone: it has no launcher activity and no app code\n"
+            "    (that is why phones say 'app not compatible').\n\n"
+            "    Get the COMPLETE app, then either:\n"
+            "      * put the split APKs (split_*.apk / config.*.apk) into a folder\n"
+            "        named 'splits' next to the base APK and re-run, or\n"
+            "      * pass a .apks/.xapk bundle with --apk, or\n"
+            "      * pass the full standalone APK from the official site/mirror.\n"
+            "    To pull the full set from a phone that has the app installed:\n"
+            "      adb shell pm path <package>   then   adb pull <each path>")
+
     keystore = None
     if not args.no_sign:
         probe = subprocess.run([APKSIGNER, "--version"], capture_output=True)
@@ -582,7 +752,8 @@ def main(argv=None):
             print("generated new keystore: %s" % args.keystore)
         keystore = args.keystore
 
-    print("source          : %s" % apk)
+    print("source          : %s (%d split APK(s) attached)"
+          % (base_apk, len(split_apks)))
     print("clones to build : %d -> %s" % (len(names), out_dir))
     print()
 
@@ -590,12 +761,14 @@ def main(argv=None):
 
     def build_one(task):
         i, name = task
-        out_path = out_dir / ("%s.apk" % safe_filename(name))
         try:
-            patched, _old, new_pkg, n_labels, n_auth, extract_patched = \
+            patched, _old, new_pkg, n_labels, n_auth, extract_patched, n_meta, n_sattr = \
                 patch_manifest(manifest, sanitize_suffix(name), name)
-            unsigned = tmp_dir / (safe_filename(name) + ".unsigned.apk")
-            write_patched_apk(apk, unsigned, patched, compress_so=extract_patched)
+            stem = safe_filename(name)
+            built_files = []
+
+            unsigned = tmp_dir / (stem + "_base.unsigned.apk")
+            write_patched_apk(base_apk, unsigned, patched, compress_so=extract_patched)
             note = "unsigned"
             if not args.no_sign:
                 sign_apk(unsigned, keystore, args.ks_pass, args.ks_alias, args.key_pass)
@@ -603,13 +776,37 @@ def main(argv=None):
                 if not ok:
                     raise RuntimeError("apksigner verify failed:\n" + msg)
                 note = "signed+verified"
-            if out_path.exists():
-                out_path.unlink()
-            unsigned.replace(out_path)
-            line = ("[%2d/%d] %-24s pkg=%s  (%.1f MB, %d label(s), %d authorit(ies)%s, %s)" % (
+            built_files.append((unsigned, "base.apk" if split_apks else None))
+
+            for si, (sp, sman) in enumerate(split_manifests):
+                sp_patched, _o2, _n2, _l2, _a2, _e2, _m2, _s2 = \
+                    patch_manifest(sman, sanitize_suffix(name), name)
+                sp_unsigned = tmp_dir / ("%s_s%02d.unsigned.apk" % (stem, si))
+                write_patched_apk(sp, sp_unsigned, sp_patched, compress_so=extract_patched)
+                if not args.no_sign:
+                    sign_apk(sp_unsigned, keystore, args.ks_pass, args.ks_alias, args.key_pass)
+                    ok2, msg2 = verify_apk(sp_unsigned)
+                    if not ok2:
+                        raise RuntimeError("apksigner verify failed for %s:\n%s" % (sp.name, msg2))
+                built_files.append((sp_unsigned, sp.name))
+
+            if split_apks:
+                out_path = out_dir / ("%s.apks" % stem)
+                with zipfile.ZipFile(out_path, "w", zipfile.ZIP_STORED) as bundle:
+                    for f, arc in built_files:
+                        bundle.write(f, arcname=arc)
+                kind = "bundle: base + %d split(s)" % len(split_apks)
+            else:
+                out_path = out_dir / ("%s.apk" % stem)
+                if out_path.exists():
+                    out_path.unlink()
+                built_files[0][0].replace(out_path)
+                kind = "standalone"
+
+            line = ("[%2d/%d] %-24s pkg=%s  (%.1f MB, %s, %d label(s), %d authorit(ies), "
+                    "%d play-marker(s)+%d split-attr(s) removed, %s)" % (
                 i, len(names), name, new_pkg, out_path.stat().st_size / 1e6,
-                n_labels, n_auth,
-                ", libs-extractable" if extract_patched else "", note))
+                kind, n_labels, n_auth, n_meta, n_sattr, note))
             return i, name, out_path, line, None
         except Exception as exc:
             return i, name, out_path, "", exc
@@ -628,6 +825,8 @@ def main(argv=None):
     for f in tmp_dir.iterdir():
         f.unlink()
     tmp_dir.rmdir()
+    if tmp_extract:
+        shutil.rmtree(tmp_extract, ignore_errors=True)
 
     failed = [n for n, b in zip(names, built) if b is None]
     if failed:

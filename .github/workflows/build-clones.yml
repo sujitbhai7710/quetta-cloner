@@ -61,8 +61,12 @@ jobs:
         run: |
           set -euo pipefail
           gh release download "$APK_SOURCE_TAG" --repo "$GITHUB_REPOSITORY" \
-             --pattern "$APK_SOURCE_NAME" --output "$APK_SOURCE_NAME" --clobber
-          ls -la "$APK_SOURCE_NAME"
+             --pattern "Quetta.apk" --pattern "*.apk" --pattern "*.apks" \
+             --pattern "*.xapk" --clobber
+          SRC=$(ls -S *.apks *.xapk *.apk 2>/dev/null | head -1)
+          test -n "$SRC" || { echo "No source APK/APKS found on release $APK_SOURCE_TAG"; exit 1; }
+          echo "APK_SOURCE_NAME=$SRC" >> "$GITHUB_ENV"
+          echo "Source: $SRC ($(du -h "$SRC" | cut -f1))"
 
       - name: Signing keystore (reuse CLONE_KEYSTORE_B64 secret if set, else generate)
         env:
@@ -149,14 +153,20 @@ jobs:
           SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           APKSIGNER=$(ls "$SDK"/build-tools/*/apksigner | sort -V | tail -1)
           AAPT2=$(ls "$SDK"/build-tools/*/aapt2 | sort -V | tail -1)
-          "$APKSIGNER" verify "dist/${{ matrix.name }}.apk"
-          "$AAPT2" dump badging "dist/${{ matrix.name }}.apk" | grep -E '^package:|application-label'
+          F=$(ls "dist/${{ matrix.name }}".apk "dist/${{ matrix.name }}".apks 2>/dev/null | head -1)
+          test -n "$F" || { echo "no output produced"; exit 1; }
+          if [[ "$F" == *.apks ]]; then
+            mkdir -p vt && (cd vt && unzip -qo "../$F" && for a in *.apk; do echo "verify $a"; "$APKSIGNER" verify "$a"; done)
+          else
+            "$APKSIGNER" verify "$F"
+            "$AAPT2" dump badging "$F" | grep -E '^package:|application-label'
+          fi
 
-      - name: Upload ${{ matrix.name }}.apk as its own artifact
+      - name: Upload ${{ matrix.name }} result as its own artifact
         uses: actions/upload-artifact@v4
         with:
           name: apk-${{ matrix.name }}
-          path: dist/${{ matrix.name }}.apk
+          path: "dist/${{ matrix.name }}.*"
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
@@ -173,22 +183,21 @@ jobs:
           merge-multiple: true
           path: dist
 
-      - name: Create release with one raw .apk asset per clone
+      - name: Create release with one result per clone
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           ls -la dist
-          test "$(ls dist/*.apk | wc -l)" -gt 0
-          cd dist
-          sha256sum *.apk > SHA256SUMS.txt
-          cd ..
+          shopt -s nullglob
+          files=(dist/*.apk dist/*.apks)
+          test "${#files[@]}" -gt 0
+          (cd dist && find . -maxdepth 1 \( -name '*.apk' -o -name '*.apks' \) -printf '%f\n' | xargs sha256sum > SHA256SUMS.txt)
           TAG="clones-${{ github.run_number }}"
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --title "APK clones (run ${{ github.run_number }})" \
             --notes "One installable clone per name in names.txt.
-          Each .apk is a separate raw asset - click any file below to download it directly (no zip wrapping).
-          Package id: net.quetta.browser.<name> (lower-cased), app label: <name>.
-          Verify your download against SHA256SUMS.txt before installing."
-          gh release upload "$TAG" dist/*.apk dist/SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
+          .apk = standalone clone; .apks = clone bundle (base + splits) - install with the free 'SAI' app.
+          Verify downloads against SHA256SUMS.txt before installing."
+          gh release upload "$TAG" "${files[@]}" dist/SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"

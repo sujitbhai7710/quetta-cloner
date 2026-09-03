@@ -8,11 +8,45 @@ installable clone per line of `names.txt` (37 names). Every clone:
 | Application/package id | `net.quetta.browser.<lowercased name>` |
 | Launcher/app name | the name exactly as written in `names.txt` |
 | Provider authorities | re-prefixed with the new package (incl. multi-authority `;` lists) |
+| Play distribution markers | removed (`splits.required`, stamp meta-data, `requiredSplitTypes`) |
 | Signature | re-signed (v2/v3) with the project keystore |
 | Everything else | untouched — binary-level patch, no decompile/recompile |
 
 Because each clone has a unique package id **and** unique provider authorities,
 all clones install side by side with the original app.
+
+## ⚠️ READ FIRST: your Quetta.apk is a Play *base* APK, not the full app
+
+The `Quetta.apk` in this project was pulled from the Play Store and contains
+**only the base module**. We proved this on a real emulator: installing it —
+original **or** clone — fails with
+
+```
+INSTALL_FAILED_MISSING_SPLIT: Missing split for net.quetta.browser
+```
+
+which phones display as *"app not compatible with your phone"*. The actual
+browser code and its launcher activity live in the **feature splits**
+(`chrome__module` etc.) that were never part of this file.
+
+**You need the complete set** (base + all splits). Pick one:
+
+1. **From a phone that has Quetta installed from Play**: install the free
+   **SAI (Split APKs Installer)** app → open SAI → *Install/Export* → export
+   Quetta → you get `base.apk` + `split_*.apk` + `config.*.apk`.
+2. **With adb**: `adb shell pm path net.quetta.browser` → `adb pull` every
+   listed path.
+3. **From an APK mirror** that ships the `.xapk`/`.apks` bundle.
+4. **From the official site** — only if they distribute a real standalone APK.
+
+Then either put the extra APKs in a `splits/` folder next to `Quetta.apk`,
+or pass a `.apks`/`.xapk` bundle directly with `--apk`. The cloner detects
+the mode automatically:
+
+- **Standalone source** → outputs `<Name>.apk` per clone (direct install).
+- **Base + splits** → outputs `<Name>.apks` per clone — transfer to the phone
+  and install with the free **SAI** app (no adb needed), or
+  `adb install-multiple base.apk split_*.apk ...`.
 
 ## Files
 
@@ -32,8 +66,12 @@ python clone_apk.py --apk Quetta.apk --count 4 --out dist
 # specific names
 python clone_apk.py --apk Quetta.apk --only "zetalite,Tovicrawlie" --out dist
 
-# all 37 names, 4 workers in parallel (~1 min)
+# all 37 names, 4 workers in parallel
 python clone_apk.py --apk Quetta.apk --out dist --jobs 4
+
+# split-set mode (base + splits folder, or an .apks/.xapk bundle as --apk)
+python clone_apk.py --apk Quetta.apk --splits splits --out dist
+python clone_apk.py --apk Quetta.xapk --out dist
 ```
 
 Requires: Python 3.8+, a JDK (`keytool`), and Android build-tools (`apksigner`)
@@ -114,10 +152,15 @@ device. What works (per clone, because every clone has its own package id):
 
 ## If the phone says "app is not compatible"
 
-1. Check the file on the phone against `SHA256SUMS.txt` (any MD5/SHA checker
-   app) — a corrupted 120–240 MB transfer is the most common cause.
-2. Copy via USB cable (MTP), not via WhatsApp/Telegram (they alter files).
-3. Temporarily disable Play Protect during install (it sometimes mislabels
+1. **Is the source complete?** A Play base APK without its splits can never
+   install — this was the actual cause for this project's `Quetta.apk`
+   (proven on an emulator: the ORIGINAL fails the exact same way). See the
+   section at the top of this file.
+2. Check the file on the phone against `SHA256SUMS.txt` (any hash checker
+   app) — corrupted transfers are the next most common cause.
+3. Copy via USB cable (MTP) or download directly in the phone's browser —
+   not via WhatsApp/Telegram (they alter files).
+4. Temporarily disable Play Protect during install (it sometimes mislabels
    re-signed apps).
-4. The clone requires Android 12L/13+ and an arm64 phone (same as the
-   original Quetta build) — your iQOO Neo 7 / iQOO Z3 both qualify.
+5. The app itself requires Android 12L/13+ and an arm64 phone (same as the
+   original build) — your iQOO Neo 7 / iQOO Z3 both qualify.
