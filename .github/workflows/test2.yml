@@ -58,6 +58,47 @@ jobs:
       - name: Echo matrix
         run: echo "matrix is ${{ steps.names.outputs.names }}"
 
+      - name: Download source APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download "$APK_SOURCE_TAG" --repo "$GITHUB_REPOSITORY" \
+             --pattern "$APK_SOURCE_NAME" --output "$APK_SOURCE_NAME" --clobber
+          ls -la "$APK_SOURCE_NAME"
+
+      - name: Signing keystore (reuse CLONE_KEYSTORE_B64 secret if set, else generate)
+        env:
+          CLONE_KEYSTORE_B64: ${{ secrets.CLONE_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p keystore
+          if [ -n "$CLONE_KEYSTORE_B64" ]; then
+            printf '%s' "$CLONE_KEYSTORE_B64" | base64 -d > keystore/clone.keystore
+            echo "Using keystore from CLONE_KEYSTORE_B64 secret"
+          else
+            keytool -genkeypair -v \
+              -keystore keystore/clone.keystore -storetype PKCS12 \
+              -alias "$KS_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KS_PASS" -keypass "$KEY_PASS" \
+              -dname "CN=APK Clone, OU=Clone, O=Clone, C=US" > /dev/null
+          fi
+
+      - name: Share keystore with build jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: keystore
+          path: keystore/clone.keystore
+          retention-days: 1
+
+      - name: Share source APK with build jobs
+        uses: actions/upload-artifact@v4
+        with:
+          name: source-apk
+          path: Quetta.apk
+          retention-days: 1
+          compression-level: 0
+
   build:
     needs: prepare
     runs-on: ubuntu-latest
