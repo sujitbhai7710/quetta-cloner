@@ -18,3 +18,4 @@ keystore/
 # python
 __pycache__/
 *.pyc
+joblog.txt
