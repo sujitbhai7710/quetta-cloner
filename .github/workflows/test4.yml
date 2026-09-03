@@ -1,0 +1,18 @@
+name: Test4
+on: workflow_dispatch
+env:
+  APK_SOURCE_TAG: apk-source
+  APK_SOURCE_NAME: Quetta.apk
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download source APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download "$APK_SOURCE_TAG" --repo "$GITHUB_REPOSITORY" \
+             --pattern "$APK_SOURCE_NAME" --output "$APK_SOURCE_NAME" --clobber
+          ls -la "$APK_SOURCE_NAME"
