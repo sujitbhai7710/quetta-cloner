@@ -27,7 +27,6 @@ permissions:
 
 env:
   APK_SOURCE_TAG: apk-source
-  APK_SOURCE_NAME: Quetta.apk
   KS_PASS: android
   KS_ALIAS: clonekey
   KEY_PASS: android
@@ -37,6 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       names: ${{ steps.names.outputs.names }}
+      source_name: ${{ steps.dl.outputs.src }}
     steps:
       - uses: actions/checkout@v4
 
@@ -56,6 +56,7 @@ jobs:
           echo "Clone matrix: $json"
 
       - name: Download source APK
+        id: dl
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -74,7 +75,7 @@ jobs:
             echo "No source APK/APKS found on release $APK_SOURCE_TAG"
             exit 1
           fi
-          echo "APK_SOURCE_NAME=$SRC" >> "$GITHUB_ENV"
+          echo "src=$SRC" >> "$GITHUB_OUTPUT"
           echo "Source: $SRC ($(du -h "$SRC" | cut -f1))"
 
       - name: Signing keystore (reuse CLONE_KEYSTORE_B64 secret if set, else generate)
@@ -107,7 +108,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: source-apk
-          path: ${{ env.APK_SOURCE_NAME }}
+          path: ${{ steps.dl.outputs.src }}
           retention-days: 1
           compression-level: 0
 
@@ -151,7 +152,7 @@ jobs:
       - name: Build clone
         run: |
           set -euo pipefail
-          python clone_apk.py --apk "$APK_SOURCE_NAME" \
+          python clone_apk.py --apk "${{ needs.prepare.outputs.source_name }}" \
             --only "${{ matrix.name }}" --out dist --jobs 1 \
             --keystore keystore/clone.keystore \
             --ks-pass "$KS_PASS" --ks-alias "$KS_ALIAS" --key-pass "$KEY_PASS"
