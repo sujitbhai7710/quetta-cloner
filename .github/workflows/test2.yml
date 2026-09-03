@@ -57,3 +57,19 @@ jobs:
 
       - name: Echo matrix
         run: echo "matrix is ${{ steps.names.outputs.names }}"
+
+  build:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 10
+      matrix:
+        name: ${{ fromJSON(needs.prepare.outputs.names) }}
+    name: clone ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show name
+        run: echo "building clone ${{ matrix.name }}"
