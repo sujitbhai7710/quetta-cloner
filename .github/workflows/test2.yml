@@ -1,0 +1,59 @@
+name: Test2
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Optional comma-separated subset of names from names.txt (empty = all)"
+        required: false
+        default: ""
+      make_release:
+        description: "Also attach every .apk as a separate, raw (non-zip) asset to a GitHub Release"
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      only:
+        description: "Optional comma-separated subset of names from names.txt (empty = all)"
+        type: string
+        default: ""
+      make_release:
+        description: "Also attach every .apk as a separate, raw (non-zip) asset to a GitHub Release"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+env:
+  APK_SOURCE_TAG: apk-source
+  APK_SOURCE_NAME: Quetta.apk
+  KS_PASS: android
+  KS_ALIAS: clonekey
+  KEY_PASS: android
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      names: ${{ steps.names.outputs.names }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build clone-name matrix from names.txt
+        id: names
+        env:
+          ONLY: ${{ inputs.only }}
+        run: |
+          set -euo pipefail
+          if [ -n "$ONLY" ]; then
+            names=$(printf '%s' "$ONLY" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$')
+          else
+            names=$(grep -v '^[[:space:]]*$' names.txt)
+          fi
+          json=$(printf '%s\n' "$names" | jq -R . | jq -s -c .)
+          echo "names=$json" >> "$GITHUB_OUTPUT"
+          echo "Clone matrix: $json"
+
+      - name: Echo matrix
+        run: echo "matrix is ${{ steps.names.outputs.names }}"
