@@ -1,0 +1,17 @@
+# build outputs
+dist/
+*.log
+
+# the source APK is attached to the apk-source GitHub release, never committed
+# (GitHub blocks files larger than 100 MB in git)
+Quetta.apk
+*.apk
+
+# signing material - never commit keys
+keystore/
+*.keystore
+*.jks
+
+# python
+__pycache__/
+*.pyc
