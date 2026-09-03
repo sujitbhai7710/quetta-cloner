@@ -1,0 +1,11 @@
+name: Test8
+on: workflow_dispatch
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Signing keystore (reuse CLONE_KEYSTORE_B64 secret if set, else generate)
+        env:
+          CLONE_KEYSTORE_B64: ${{ secrets.CLONE_KEYSTORE_B64 }}
+        run: echo ok
