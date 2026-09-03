@@ -163,10 +163,17 @@ jobs:
           SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           APKSIGNER=$(ls "$SDK"/build-tools/*/apksigner | sort -V | tail -1)
           AAPT2=$(ls "$SDK"/build-tools/*/aapt2 | sort -V | tail -1)
-          F=$(ls "dist/${{ matrix.name }}".apk "dist/${{ matrix.name }}".apks 2>/dev/null | head -1)
-          test -n "$F" || { echo "no output produced"; exit 1; }
-          if [[ "$F" == *.apks ]]; then
-            mkdir -p vt && (cd vt && unzip -qo "../$F" && for a in *.apk; do echo "verify $a"; "$APKSIGNER" verify "$a"; done)
+          F=""
+          for c in "dist/${{ matrix.name }}.apks" "dist/${{ matrix.name }}.apk"; do
+            if [ -f "$c" ]; then F="$c"; break; fi
+          done
+          if [ -z "$F" ]; then
+            echo "no output produced"; exit 1
+          fi
+          echo "verifying $F"
+          if [ "${F##*.}" = "apks" ]; then
+            mkdir -p vt
+            (cd vt && unzip -qo "../$F" && for a in *.apk; do echo "verify $a"; "$APKSIGNER" verify "$a"; done)
           else
             "$APKSIGNER" verify "$F"
             "$AAPT2" dump badging "$F" | grep -E '^package:|application-label'
