@@ -189,6 +189,42 @@ def patch_strings_xml(decoded_dir, clone_label):
             pass
 
 
+def patch_resources_arsc_package(decoded_dir, old_pkg, new_pkg):
+    """Patch the resources.arsc package name.
+
+    CRITICAL: Chromium's renderer uses the resources.arsc package name to look
+    up @0x7f... resources. If the manifest says 'net.quetta.browser.zetalite'
+    but resources.arsc says 'net.quetta.browser', the renderer can't find
+    resources -> 'Aw Snap' / 'Can't open page' / renderer crash.
+
+    BFE does this via ApkModule.setPackageName() which renames both manifest
+    AND resources.arsc. We replicate it by patching:
+      - resources/*/package.json (package_name field)
+      - resources/*/res/values/public.xml (package="..." attribute)
+    """
+    # Patch package.json files
+    for pkg_json in decoded_dir.rglob("package.json"):
+        try:
+            text = pkg_json.read_text(encoding="utf-8", errors="surrogateescape")
+            text = text.replace(
+                '"package_name": "%s"' % old_pkg,
+                '"package_name": "%s"' % new_pkg)
+            pkg_json.write_text(text, encoding="utf-8", errors="surrogateescape")
+        except Exception:
+            pass
+
+    # Patch public.xml files (the package="..." attribute on <resources>)
+    for public_xml in decoded_dir.rglob("public.xml"):
+        try:
+            text = public_xml.read_text(encoding="utf-8", errors="surrogateescape")
+            text = text.replace(
+                'package="%s" id=' % old_pkg,
+                'package="%s" id=' % new_pkg)
+            public_xml.write_text(text, encoding="utf-8", errors="surrogateescape")
+        except Exception:
+            pass
+
+
 def build_clone(source_path, name, suffix, out_dir, keystore,
                 ks_pass, ks_alias, key_pass, tmp_root):
     """Build a single clone. Mirrors BFE's ApkRewriter.rewrite()."""
@@ -222,13 +258,16 @@ def build_clone(source_path, name, suffix, out_dir, keystore,
     # Step 4: Patch strings.xml (app label)
     patch_strings_xml(decoded, name)
 
-    # Step 5: Build APK (ARSCLib handles resources.arsc package rename via build)
+    # Step 5: Patch resources.arsc package name (CRITICAL for Chromium renderer)
+    patch_resources_arsc_package(decoded, old_pkg, new_pkg)
+
+    # Step 6: Build APK (ARSCLib handles resources.arsc package rename via build)
     out_apk = (tmp_root / (safe_filename(name) + ".apk")).resolve()
     if out_apk.exists():
         out_apk.unlink()
     apkeditor_build(decoded, out_apk)
 
-    # Step 6: Zipalign + sign
+    # Step 7: Zipalign + sign
     zipalign_apk(out_apk)
     sign_apk(str(out_apk), keystore, ks_pass, ks_alias, key_pass)
     ok, msg = verify_apk(str(out_apk))
