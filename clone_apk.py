@@ -214,8 +214,16 @@ def patch_manifest(manifest, suffix, label, extract_libs=True):
     label_idx = None
     labels_patched = 0
     authorities_patched = 0
+    permissions_patched = 0
     extract_libs_patched = False
+    # tags whose android:name attribute is a permission-like identifier that
+    # must be globally unique across all installed apps -> re-prefix it with
+    # the new package so clones can coexist (INSTALL_FAILED_DUPLICATE_PERMISSION).
+    PERM_TAGS = frozenset(("permission", "uses-permission",
+                           "permission-group", "permission-tree"))
     for chunk in start_elements:
+        tag = _element_tag(strings, bytes(chunk))
+        is_perm_tag = tag in PERM_TAGS
         for a in parse_attributes(bytes(chunk)):
             if (a["ns"] == NO_INDEX or a["ns"] >= len(pool)
                     or pool[a["ns"]] != ANDROID_NS):
@@ -244,6 +252,23 @@ def patch_manifest(manifest, suffix, label, extract_libs=True):
                 if changed:
                     _set_string_value(chunk, a, intern(";".join(new_parts)))
                     authorities_patched += 1
+            elif (is_perm_tag and name == "name"
+                    and a["dtype"] == TYPE_STRING):
+                # <permission android:name="..."> / <uses-permission ...> /
+                # <permission-group ...> / <permission-tree ...>
+                # Re-prefix any name that lives under the original package
+                # namespace (e.g. net.quetta.browser.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+                # -> net.quetta.browser.<clone>.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION).
+                # System permissions (android.permission.INTERNET, etc.) are
+                # left untouched because they do not start with old_package.
+                s = pool[a["data"]]
+                if s == old_package:
+                    _set_string_value(chunk, a, intern(new_package))
+                    permissions_patched += 1
+                elif s.startswith(old_package + "."):
+                    _set_string_value(chunk, a,
+                                      intern(new_package + s[len(old_package):]))
+                    permissions_patched += 1
             elif name == "extractNativeLibs" and a["dtype"] == 0x12:  # INT_BOOLEAN
                 # extractNativeLibs=true -> installer extracts libs, removing
                 # every page-size/alignment requirement (max compatibility)
@@ -344,8 +369,8 @@ def patch_manifest(manifest, suffix, label, extract_libs=True):
     total = 8 + len(pool_blob) + len(body_blob)
     out = struct.pack("<HHI", RES_XML_TYPE, 8, total) + pool_blob + body_blob
     return (bytes(out), old_package, new_package, labels_patched,
-            authorities_patched, extract_libs_patched, removed_meta,
-            split_attrs_removed)
+            authorities_patched, permissions_patched, extract_libs_patched,
+            removed_meta, split_attrs_removed)
 
 
 def _local_header(rawf, info):
@@ -784,7 +809,7 @@ def main(argv=None):
     def build_one(task):
         i, name = task
         try:
-            patched, _old, new_pkg, n_labels, n_auth, extract_patched, n_meta, n_sattr = \
+            patched, _old, new_pkg, n_labels, n_auth, n_perm, extract_patched, n_meta, n_sattr = \
                 patch_manifest(manifest, sanitize_suffix(name), name)
             stem = safe_filename(name)
             built_files = []
@@ -801,7 +826,7 @@ def main(argv=None):
             built_files.append((unsigned, "base.apk" if split_apks else None))
 
             for si, (sp, sman) in enumerate(split_manifests):
-                sp_patched, _o2, _n2, _l2, _a2, _e2, _m2, _s2 = \
+                sp_patched, _o2, _n2, _l2, _a2, _p2, _e2, _m2, _s2 = \
                     patch_manifest(sman, sanitize_suffix(name), name)
                 sp_unsigned = tmp_dir / ("%s_s%02d.unsigned.apk" % (stem, si))
                 write_patched_apk(sp, sp_unsigned, sp_patched, compress_so=extract_patched)
@@ -826,9 +851,9 @@ def main(argv=None):
                 kind = "standalone"
 
             line = ("[%2d/%d] %-24s pkg=%s  (%.1f MB, %s, %d label(s), %d authorit(ies), "
-                    "%d play-marker(s)+%d split-attr(s) removed, %s)" % (
+                    "%d permission(s), %d play-marker(s)+%d split-attr(s) removed, %s)" % (
                 i, len(names), name, new_pkg, out_path.stat().st_size / 1e6,
-                kind, n_labels, n_auth, n_meta, n_sattr, note))
+                kind, n_labels, n_auth, n_perm, n_meta, n_sattr, note))
             return i, name, out_path, line, None
         except Exception as exc:
             return i, name, out_path, "", exc
