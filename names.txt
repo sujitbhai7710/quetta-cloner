@@ -35,3 +35,5 @@ spandanknoknok
 peeks
 margined
 allocation
+
+TestNewClone
