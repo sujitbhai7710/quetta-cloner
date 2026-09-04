@@ -88,7 +88,7 @@ jobs:
           # Keystores are committed to the repo so they persist across runs ->
           # updates install cleanly over previous versions of the same clone.
           echo "$NAMES_JSON" | jq -r '.[]' | while read -r name; do
-            safe_name=$(echo "$name" | tr -c 'A-Za-z0-9._-' '_')
+            safe_name=$(echo "$name" | tr -cd 'A-Za-z0-9._-')
             ks_path="keystores/${safe_name}.keystore"
             if [ -f "$ks_path" ]; then
               echo "  ✓ $name: reusing existing keystore ($ks_path)"
@@ -98,7 +98,7 @@ jobs:
                 -keystore "$ks_path" -storetype PKCS12 \
                 -alias "$KS_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
                 -storepass "$KS_PASS" -keypass "$KEY_PASS" \
-                -dname "CN=APK Clone $safe_name, OU=Clone, O=Clone, C=US" > /dev/null 2>&1
+                -dname "CN=APK Clone $safe_name, OU=Clone, O=Clone, C=US" > /dev/null 2>&1 || true
             fi
           done
           echo ""
@@ -187,7 +187,7 @@ jobs:
           set -euo pipefail
           # Use the per-clone keystore (each clone has its own unique key,
           # persisted in the repo so updates install over previous versions).
-          safe_name=$(echo "${{ matrix.name }}" | tr -c 'A-Za-z0-9._-' '_')
+          safe_name=$(echo "${{ matrix.name }}" | tr -cd 'A-Za-z0-9._-')
           KS_PATH="keystores/${safe_name}.keystore"
           if [ ! -f "$KS_PATH" ]; then
             echo "ERROR: keystore not found for ${{ matrix.name }} at $KS_PATH"
