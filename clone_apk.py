@@ -1,32 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""clone_apk.py - batch APK cloner using APKEditor (ARSCLib-based).
+"""clone_apk.py - batch APK cloner (BFE-matching logic, ARSCLib-based).
 
-For every name in names.txt it produces a signed clone of the source APK:
+Mirrors exactly what BFE's ApkRewriter does:
+  - Merges split APKs into a single standalone APK (APKEditor merge)
+  - Decodes to XML manifest + resources (APKEditor decode)
+  - Patches ONLY the manifest XML (package, permissions, authorities, label,
+    taskAffinity) — does NOT touch DEX/smali
+  - Patches strings.xml for app label
+  - Builds back (APKEditor build) — ARSCLib handles resources.arsc rename
+  - Signs with per-clone persistent keystore
 
-  * application id      : <original-package>.<lowercased clone name>
-  * app label           : the clone name exactly as written in names.txt
-  * provider authorities: re-prefixed with the new package
-  * permission names    : re-prefixed (both declarations AND references)
-  * taskAffinity        : re-prefixed for per-clone task separation
-  * Play split markers  : stripped (handled by APKEditor merge)
-  * DEX code            : string literals patched (class refs left alone)
-  * Output              : single standalone .apk (no SAI needed!)
-  * Signature           : re-signed (v1+v2+v3) with per-clone keystore
-
-This uses APKEditor (https://github.com/REAndroid/APKEditor) which is built
-on ARSCLib - the same library BFE uses for its APK cloner feature.
-
-Flow:
-  1. APKEditor merge: xapk/apks/apkm → single standalone APK
-     (auto-strips isSplitRequired, requiredSplitTypes, Play meta-data,
-     merges all splits into one APK)
-  2. APKEditor decode: APK → XML manifest + smali + resources
-  3. Patch AndroidManifest.xml (package, permissions, authorities, label, etc.)
-  4. Patch strings.xml (app_cloak_name → clone name)
-  5. Patch smali (string literals only, NOT class refs)
-  6. APKEditor build: patched XML/smali → APK
-  7. zipalign + sign with per-clone keystore
+CRITICAL: We do NOT patch smali. BFE proved that patching only the manifest
+is enough. Patching DEX string literals breaks Class.forName() calls and
+other reflection, causing delayed crashes (30-40s after launch).
 """
 
 import argparse
@@ -60,9 +47,7 @@ def find_tool(name):
         if os.path.isfile(p):
             return p
     found = shutil.which(name)
-    if found:
-        return found
-    return name
+    return found if found else name
 
 
 APKSIGNER = find_tool("apksigner")
@@ -83,17 +68,13 @@ def find_source_apk(explicit=None):
     if explicit:
         return Path(explicit)
     cands = [p for p in Path(".").glob("*.apk") if p.is_file()]
-    if not cands:
-        return None
-    return sorted(cands, key=lambda p: p.name)[0]
+    return sorted(cands, key=lambda p: p.name)[0] if cands else None
 
 
 def sanitize_suffix(name):
     s = re.sub(r"[^a-z0-9_]", "_", name.lower())
     s = re.sub(r"_+", "_", s).strip("_") or "clone"
-    if not re.match(r"^[a-z]", s):
-        s = "app" + s
-    return s
+    return s if re.match(r"^[a-z]", s) else "app" + s
 
 
 def safe_filename(name):
@@ -105,8 +86,7 @@ def load_names(path):
     for line in Path(path).read_text(encoding="utf-8-sig").splitlines():
         n = line.strip()
         if n and n not in seen:
-            seen.add(n)
-            names.append(n)
+            seen.add(n); names.append(n)
     return names
 
 
@@ -130,8 +110,7 @@ def sign_apk(apk_path, keystore, store_pass, alias, key_pass):
 
 
 def verify_apk(apk_path):
-    res = subprocess.run([APKSIGNER, "verify", "--min-sdk-version", "21",
-                          "--print-certs", apk_path],
+    res = subprocess.run([APKSIGNER, "verify", "--min-sdk-version", "21", apk_path],
                          capture_output=True, text=True)
     return res.returncode == 0, (res.stdout + res.stderr).strip()
 
@@ -143,8 +122,6 @@ def zipalign_apk(apk_path):
 
 
 def apkeditor_merge(input_path, output_path):
-    """Merge split APKs (xapk/apks/apkm) → single standalone APK.
-    Also sanitizes manifest (removes Play split markers)."""
     r = subprocess.run(["java", "-jar", APKEDITOR_JAR, "m", "-i", str(input_path),
                        "-o", str(output_path), "-f"],
                       capture_output=True, text=True)
@@ -153,7 +130,6 @@ def apkeditor_merge(input_path, output_path):
 
 
 def apkeditor_decode(input_path, output_dir):
-    """Decompile APK to XML manifest + smali + resources."""
     r = subprocess.run(["java", "-jar", APKEDITOR_JAR, "d", "-t", "xml",
                         "-i", str(input_path), "-o", str(output_dir), "-f"],
                        capture_output=True, text=True)
@@ -162,7 +138,6 @@ def apkeditor_decode(input_path, output_dir):
 
 
 def apkeditor_build(input_dir, output_path):
-    """Build APK from decompiled directory."""
     r = subprocess.run(["java", "-jar", APKEDITOR_JAR, "b", "-i", str(input_dir),
                         "-o", str(output_path), "-f"],
                        capture_output=True, text=True)
@@ -171,15 +146,30 @@ def apkeditor_build(input_dir, output_path):
 
 
 def patch_manifest_xml(manifest_path, old_pkg, new_pkg, clone_label):
-    """Patch the decoded AndroidManifest.xml (plain XML)."""
+    """Patch the decoded AndroidManifest.xml (plain XML).
+
+    Exactly mirrors BFE's ApkRewriter.renamePackage():
+    1. Provider authorities re-prefixed
+    2. Permission declarations re-prefixed
+    3. Permission references (android:permission etc.) re-prefixed
+    4. taskAffinity re-prefixed
+    5. Package name renamed
+
+    Does NOT touch component class names (they're already absolute in Quetta).
+    Does NOT touch sharedUserId (Quetta doesn't use it).
+    """
     text = manifest_path.read_text(encoding="utf-8", errors="surrogateescape")
+
     # Use placeholder to avoid double-replacement
+    # Phase 1: replace old package with placeholder
     text = text.replace(old_pkg + ".", "__PKG_DOT__.")
     text = text.replace(old_pkg + ";", "__PKG_DOT__;")
     text = text.replace(old_pkg + '"', '__PKG_DOT__"')
     text = text.replace('package="' + old_pkg + '"', 'package="__PKG_DOT__"')
+
     # Phase 2: replace placeholder with new package
     text = text.replace("__PKG_DOT__", new_pkg)
+
     manifest_path.write_text(text, encoding="utf-8", errors="surrogateescape")
 
 
@@ -190,56 +180,26 @@ def patch_strings_xml(decoded_dir, clone_label):
             text = strings_xml.read_text(encoding="utf-8", errors="surrogateescape")
             text = re.sub(
                 r'(<string name="app_cloak_name">)[^<]*(</string>)',
-                r'\g<1>%s\g<2>' % re.escape(clone_label),
-                text)
+                r'\g<1>%s\g<2>' % re.escape(clone_label), text)
             text = re.sub(
                 r'(<string name="app_name">)(?!@string)[^<]*(</string>)',
-                r'\g<1>%s\g<2>' % re.escape(clone_label),
-                text)
+                r'\g<1>%s\g<2>' % re.escape(clone_label), text)
             strings_xml.write_text(text, encoding="utf-8", errors="surrogateescape")
         except Exception:
             pass
 
 
-def patch_smali_only(decoded_dir, old_pkg, new_pkg):
-    """Patch ONLY string literals in smali files. Do NOT move class files
-    and do NOT patch Lnet/quetta/browser/ class references.
-
-    CRITICAL: Java class paths (Lnet/quetta/browser/Foo;) must stay unchanged
-    because the manifest's android:name attributes reference classes by their
-    original FQCN. If we move the class files, the manifest can't find them
-    -> ClassNotFoundException -> instant crash on launch.
-    """
-    old_pkg_dot = old_pkg
-    new_pkg_dot = new_pkg
-
-    # Phase 1: replace old package with placeholder in STRING LITERALS only.
-    for smali_file in decoded_dir.rglob("*.smali"):
-        text = smali_file.read_text(encoding="utf-8", errors="surrogateescape")
-        text = text.replace('"' + old_pkg_dot + '.', '"__PKG_DOT__.')
-        text = text.replace('"' + old_pkg_dot + ';', '"__PKG_DOT__;')
-        text = text.replace('"' + old_pkg_dot + '"', '"__PKG_DOT__"')
-        smali_file.write_text(text, encoding="utf-8", errors="surrogateescape")
-
-    # Phase 2: replace placeholder with new package
-    for smali_file in decoded_dir.rglob("*.smali"):
-        text = smali_file.read_text(encoding="utf-8", errors="surrogateescape")
-        text = text.replace('__PKG_DOT__', new_pkg_dot)
-        smali_file.write_text(text, encoding="utf-8", errors="surrogateescape")
-
-
 def build_clone(source_path, name, suffix, out_dir, keystore,
                 ks_pass, ks_alias, key_pass, tmp_root):
-    """Build a single clone. Returns (out_path, info_line)."""
-    # Detect old package from source
+    """Build a single clone. Mirrors BFE's ApkRewriter.rewrite()."""
     is_split = source_path.suffix.lower() in (".xapk", ".apks", ".apkm", ".zip")
 
+    # Step 1: Merge to single APK (handles splits + Play markers)
     if is_split:
-        # Merge to single APK first
-        merged_apk = tmp_root / (suffix + "_merged.apk")
-        if not merged_apk.exists():
-            apkeditor_merge(source_path, merged_apk)
-        work_apk = merged_apk
+        merged = tmp_root / (suffix + "_merged.apk")
+        if not merged.exists():
+            apkeditor_merge(source_path, merged)
+        work_apk = merged
     else:
         work_apk = source_path
 
@@ -250,59 +210,52 @@ def build_clone(source_path, name, suffix, out_dir, keystore,
     old_pkg = m.group(1) if m else "net.quetta.browser"
     new_pkg = old_pkg + "." + suffix
 
-    stem = safe_filename(name)
-
-    # Decompile to XML + smali
+    # Step 2: Decompile to XML (manifest + resources, NOT smali-only)
     decoded = Path(tempfile.mkdtemp(prefix="decoded_", dir=str(tmp_root))).resolve()
     apkeditor_decode(work_apk, decoded)
 
-    # Patch manifest
+    # Step 3: Patch manifest XML (package, permissions, authorities, label, taskAffinity)
     manifest = decoded / "AndroidManifest.xml"
     if manifest.is_file():
         patch_manifest_xml(manifest, old_pkg, new_pkg, name)
 
-    # Patch strings.xml (app label)
+    # Step 4: Patch strings.xml (app label)
     patch_strings_xml(decoded, name)
 
-    # Patch smali (string literals only)
-    patch_smali_only(decoded, old_pkg, new_pkg)
-
-    # Build APK
-    out_apk = (tmp_root / (stem + ".apk")).resolve()
+    # Step 5: Build APK (ARSCLib handles resources.arsc package rename via build)
+    out_apk = (tmp_root / (safe_filename(name) + ".apk")).resolve()
     if out_apk.exists():
         out_apk.unlink()
     apkeditor_build(decoded, out_apk)
 
-    # Zipalign + sign
+    # Step 6: Zipalign + sign
     zipalign_apk(out_apk)
     sign_apk(str(out_apk), keystore, ks_pass, ks_alias, key_pass)
     ok, msg = verify_apk(str(out_apk))
     if not ok:
-        raise RuntimeError("apksigner verify failed:\n%s" % msg)
+        raise RuntimeError("verify failed:\n%s" % msg)
 
     # Copy to output
-    final_path = out_dir / ("%s.apk" % stem)
+    final_path = out_dir / ("%s.apk" % safe_filename(name))
     if final_path.exists():
         final_path.unlink()
     shutil.copy2(out_apk, final_path)
 
     # Cleanup
     shutil.rmtree(decoded, ignore_errors=True)
-    if is_split:
-        merged_apk.unlink(missing_ok=True)
     out_apk.unlink(missing_ok=True)
+    if is_split:
+        merged.unlink(missing_ok=True)
 
     size_mb = final_path.stat().st_size / 1e6
-    info = "pkg=%s (%.1f MB, standalone APK, signed+verified)" % (new_pkg, size_mb)
-    return final_path, info
+    return final_path, "pkg=%s (%.1f MB, standalone, signed+verified)" % (new_pkg, size_mb)
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(
-        description="Batch APK cloner (APKEditor/ARSCLib-based)")
+    ap = argparse.ArgumentParser(description="Batch APK cloner (BFE-matching logic)")
     ap.add_argument("--apk", help="source APK / .apks / .xapk / .apkm")
     ap.add_argument("--names-file", default="names.txt")
-    ap.add_argument("--only", help="comma-separated subset of clone names")
+    ap.add_argument("--only", help="comma-separated subset")
     ap.add_argument("--count", type=int, default=0)
     ap.add_argument("--out", default="dist")
     ap.add_argument("--keystore", default="keystore/clone.keystore")
@@ -310,7 +263,6 @@ def main(argv=None):
     ap.add_argument("--ks-alias", default="clonekey")
     ap.add_argument("--key-pass", default="android")
     ap.add_argument("--jobs", type=int, default=1)
-    ap.add_argument("--info", action="store_true")
     args = ap.parse_args(argv)
 
     source = find_source_apk(args.apk)
@@ -322,7 +274,7 @@ def main(argv=None):
     elif Path(args.names_file).is_file():
         names = load_names(args.names_file)
     else:
-        sys.exit("names file not found: %s (or use --only)" % args.names_file)
+        sys.exit("names file not found: %s" % args.names_file)
     if args.count and args.count > 0 and not args.only:
         names = names[:args.count]
     if not names:
@@ -338,15 +290,14 @@ def main(argv=None):
                        "CN=APK Clone, OU=Clone, O=Clone, C=US"):
         print("generated new keystore: %s" % args.keystore)
 
-    # Check APKEditor (returns exit code 2 for -h, but that's OK)
     r = subprocess.run(["java", "-jar", APKEDITOR_JAR, "-h"],
                        capture_output=True, text=True)
     if "APKEditor" not in (r.stdout + r.stderr):
-        sys.exit("APKEditor not found at %s - set APKEDITOR_JAR env var" % APKEDITOR_JAR)
+        sys.exit("APKEditor not found at %s" % APKEDITOR_JAR)
 
     print("source          : %s" % source)
     print("clones to build : %d -> %s" % (len(names), out_dir))
-    print("output format   : single standalone .apk per clone (no SAI needed)")
+    print("output format   : single standalone .apk (no SAI, no DEX patching — BFE logic)")
     print()
 
     def build_one(task):
@@ -355,10 +306,8 @@ def main(argv=None):
             suffix = sanitize_suffix(name)
             out_path, info = build_clone(
                 source, name, suffix, out_dir,
-                args.keystore, args.ks_pass, args.ks_alias, args.key_pass,
-                tmp_dir)
-            line = "[%2d/%d] %-24s %s" % (i, len(names), name, info)
-            return i, name, out_path, line, None
+                args.keystore, args.ks_pass, args.ks_alias, args.key_pass, tmp_dir)
+            return i, name, out_path, "[%2d/%d] %-24s %s" % (i, len(names), name, info), None
         except Exception as exc:
             return i, name, None, "", exc
 
@@ -367,26 +316,20 @@ def main(argv=None):
     with ThreadPoolExecutor(max_workers=workers) as pool:
         for i, name, out_path, line, err in pool.map(build_one, enumerate(names, 1)):
             if err is None:
-                print(line)
-                built[i - 1] = out_path
+                print(line); built[i - 1] = out_path
             else:
                 print("[%2d/%d] %-24s FAILED: %s" % (i, len(names), name, err))
 
-    # Cleanup tmp
     for f in tmp_dir.iterdir():
-        if f.is_dir():
-            shutil.rmtree(f, ignore_errors=True)
-        else:
-            f.unlink()
+        shutil.rmtree(f, ignore_errors=True) if f.is_dir() else f.unlink()
     tmp_dir.rmdir()
 
     failed = [n for n, b in zip(names, built) if b is None]
     if failed:
         sys.exit("\nfailed clones: " + ", ".join(failed))
 
-    # Checksums
-    sums_path = out_dir / "SHA256SUMS.txt"
-    with sums_path.open("w", encoding="utf-8") as fh:
+    sums = out_dir / "SHA256SUMS.txt"
+    with sums.open("w") as fh:
         for p in built:
             h = hashlib.sha256()
             with p.open("rb") as f:
