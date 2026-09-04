@@ -15,7 +15,34 @@ installable clone per line of `names.txt` (37 names). Every clone:
 Because each clone has a unique package id **and** unique provider authorities,
 all clones install side by side with the original app.
 
-## ⚠️ READ FIRST: your Quetta.apk is a Play *base* APK, not the full app
+## ⚠️ READ FIRST: your Quetta.xapk MUST include the arm64 V8 snapshot
+
+The cloner merges all splits into a single standalone APK. But Quetta's V8
+JavaScript engine requires two snapshot files:
+  - `assets/snapshot_blob_32.bin` (32-bit V8 snapshot — present in the base APK)
+  - `assets/snapshot_blob_64.bin` (64-bit V8 snapshot — in `config.arm64_v8a.apk`)
+
+If your source `.xapk`/`.apks` was exported from a phone via SAI and is missing
+the `config.arm64_v8a` split, the clones will launch but crash with
+`[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup snapshot file`
+when you try to open any webpage ("Aw Snap").
+
+**How to get a complete xapk:**
+1. On the phone that has Quetta installed from Play Store, run:
+   `adb shell pm path net.quetta.browser`
+2. This lists ALL split APK paths. You need **every** one, especially
+   `config.arm64_v8a.apk` (contains the 64-bit V8 snapshot).
+3. `adb pull` each path, then zip them all into a `.xapk`:
+   `zip Quetta_complete.xapk base.apk chrome.apk on_demand.apk config.*.apk`
+4. Upload `Quetta_complete.xapk` to the `apk-source` release (replace existing).
+5. Re-run the workflow.
+
+**Quick check**: unzip your `.xapk` and look for `snapshot_blob_64.bin` inside
+any of the APKs. If it's missing, you need to re-export with the config split.
+
+---
+
+## ⚠️ Previous note: your Quetta.apk is a Play *base* APK, not the full app
 
 The `Quetta.apk` in this project was pulled from the Play Store and contains
 **only the base module**. We proved this on a real emulator: installing it —

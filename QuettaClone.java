@@ -145,7 +145,36 @@ public class QuettaClone {
         writer.close();
         module.close();
 
+        // Check for missing V8 snapshot (causes "Aw Snap" on arm64)
+        checkV8Snapshot(output);
+
         System.out.println("[8/8] Done: " + output);
+    }
+
+    static void checkV8Snapshot(File apk) {
+        try {
+            java.util.zip.ZipFile zf = new java.util.zip.ZipFile(apk);
+            boolean has32 = zf.getEntry("assets/snapshot_blob_32.bin") != null;
+            boolean has64 = zf.getEntry("assets/snapshot_blob_64.bin") != null;
+            boolean hasCtx32 = zf.getEntry("assets/v8_context_snapshot_32.bin") != null;
+            boolean hasCtx64 = zf.getEntry("assets/v8_context_snapshot_64.bin") != null;
+            zf.close();
+            if (!has64) {
+                System.out.println();
+                System.out.println("⚠️  WARNING: assets/snapshot_blob_64.bin is MISSING from the APK!");
+                System.out.println("   The clone will launch but CRASH with 'Aw Snap' when opening webpages.");
+                System.out.println("   The V8 JavaScript engine needs the 64-bit snapshot file.");
+                System.out.println("   Your source xapk is missing the config.arm64_v8a split.");
+                System.out.println("   Re-export with: adb shell pm path net.quetta.browser");
+                System.out.println("   Then adb pull ALL splits (especially config.arm64_v8a.apk)");
+                System.out.println("   and zip them into a new .xapk, then re-upload to apk-source release.");
+                System.out.println();
+            }
+            if (has32) System.out.println("  ✓ snapshot_blob_32.bin present");
+            if (has64) System.out.println("  ✓ snapshot_blob_64.bin present");
+        } catch (Exception e) {
+            // non-fatal
+        }
     }
 
     static void renamePackage(ApkModule module, AndroidManifestBlock manifest,
