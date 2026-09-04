@@ -179,9 +179,9 @@ jobs:
           echo "verifying $F"
           if [ "${F##*.}" = "apks" ]; then
             mkdir -p vt
-            (cd vt && unzip -qo "../$F" && for a in *.apk; do echo "verify $a"; "$APKSIGNER" verify "$a"; done)
+            (cd vt && unzip -qo "../$F" && for a in *.apk; do echo "verify $a"; "$APKSIGNER" verify --min-sdk-version 21 "$a"; done)
           else
-            "$APKSIGNER" verify "$F"
+            "$APKSIGNER" verify --min-sdk-version 21 "$F"
             "$AAPT2" dump badging "$F" | grep -E '^package:|application-label'
           fi
 
