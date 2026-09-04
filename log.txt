@@ -1,0 +1,535 @@
+CF-MANAGER C:\Users\akasa\AppData\Local\Android\Sdk\platform-tools> .\adb logcat -d > crash.txt
+CF-MANAGER C:\Users\akasa\AppData\Local\Android\Sdk\platform-tools> Get-Content crash.txt | Select-String -Pattern "FATAL","AndroidRuntime","chromium","chrome","renderer","sandbox","crash"
+
+09-04 22:18:56.757 24220 24220 E chromium:
+[ERROR:components/content_settings/core/browser/content_settings_default_provider.cc:406] invalid default setting:
+BRAVE_COSMETIC_FILTERING {
+09-04 22:18:56.757 24220 24220 E chromium:    "cosmeticFilteringV2": 1
+09-04 22:18:56.757 24220 24220 E chromium: }
+09-04 22:18:56.757 24220 24220 E chromium:
+09-04 22:18:56.757 24220 24220 E chromium:
+[ERROR:components/content_settings/core/browser/content_settings_default_provider.cc:406] invalid default setting:
+BRAVE_AUTO_SHRED {
+09-04 22:18:56.757 24220 24220 E chromium:    "braveAutoShred": 0
+09-04 22:18:56.757 24220 24220 E chromium: }
+09-04 22:18:56.757 24220 24220 E chromium:
+--------- beginning of crash
+09-04 22:18:57.187 24344 24390 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0
+09-04 22:18:57.187 24344 24390 F DEBUG   : pid: 24344, tid: 24390, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:0 <<<
+09-04 22:18:57.187 24344 24390 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:18:57.187 24344 24390 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:57.187 24344 24390 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:57.187 24344 24390 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:57.187 24344 24390 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:57.187 24344 24390 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:57.187 24344 24390 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:57.187 24344 24390 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:57.187 24344 24390 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.083 24430 24443 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1
+09-04 22:18:58.083 24430 24443 F DEBUG   : pid: 24430, tid: 24443, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1 <<<
+09-04 22:18:58.083 24430 24443 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:18:58.083 24430 24443 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.083 24430 24443 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.083 24430 24443 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.083 24430 24443 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.083 24430 24443 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.083 24430 24443 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.083 24430 24443 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.083 24430 24443 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.307 24444 24454 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:2
+09-04 22:18:58.307 24444 24454 F DEBUG   : pid: 24444, tid: 24454, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:2 <<<
+09-04 22:18:58.307 24444 24454 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:18:58.307 24444 24454 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.307 24444 24454 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.307 24444 24454 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.307 24444 24454 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.307 24444 24454 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.307 24444 24454 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.307 24444 24454 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.307 24444 24454 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.427 24457 24497 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:3
+09-04 22:18:58.427 24457 24497 F DEBUG   : pid: 24457, tid: 24497, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:3 <<<
+09-04 22:18:58.427 24457 24497 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:18:58.427 24457 24497 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.427 24457 24497 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.427 24457 24497 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.427 24457 24497 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.427 24457 24497 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.427 24457 24497 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.427 24457 24497 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.427 24457 24497 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.490 24469 24500 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:5
+09-04 22:18:58.490 24469 24500 F DEBUG   : pid: 24469, tid: 24500, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:5 <<<
+09-04 22:18:58.490 24469 24500 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:18:58.490 24469 24500 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.490 24469 24500 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.490 24469 24500 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.490 24469 24500 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.490 24469 24500 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.490 24469 24500 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.490 24469 24500 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.490 24469 24500 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.542 24478 24502 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:6
+09-04 22:18:58.542 24478 24502 F DEBUG   : pid: 24478, tid: 24502, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:6 <<<
+09-04 22:18:58.542 24478 24502 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:18:58.543 24478 24502 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.543 24478 24502 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.543 24478 24502 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.543 24478 24502 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.543 24478 24502 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.543 24478 24502 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.543 24478 24502 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.543 24478 24502 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.601 24461 24503 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:4
+09-04 22:18:58.601 24461 24503 F DEBUG   : pid: 24461, tid: 24503, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:4 <<<
+09-04 22:18:58.601 24461 24503 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:18:58.601 24461 24503 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.601 24461 24503 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.601 24461 24503 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.601 24461 24503 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.601 24461 24503 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.601 24461 24503 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.601 24461 24503 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.601 24461 24503 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.766 24505 24518 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:7
+09-04 22:18:58.766 24505 24518 F DEBUG   : pid: 24505, tid: 24518, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:7 <<<
+09-04 22:18:58.766 24505 24518 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:18:58.766 24505 24518 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.766 24505 24518 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.766 24505 24518 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.766 24505 24518 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.766 24505 24518 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.766 24505 24518 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.766 24505 24518 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:18:58.766 24505 24518 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.177 24534 24566 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:8
+09-04 22:19:02.177 24534 24566 F DEBUG   : pid: 24534, tid: 24566, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:8 <<<
+09-04 22:19:02.177 24534 24566 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:19:02.177 24534 24566 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.177 24534 24566 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.177 24534 24566 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.177 24534 24566 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.177 24534 24566 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.177 24534 24566 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.177 24534 24566 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.177 24534 24566 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.324 24556 24585 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:9
+09-04 22:19:02.324 24556 24585 F DEBUG   : pid: 24556, tid: 24585, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:9 <<<
+09-04 22:19:02.324 24556 24585 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:19:02.325 24556 24585 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.325 24556 24585 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.325 24556 24585 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.325 24556 24585 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.325 24556 24585 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.325 24556 24585 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.325 24556 24585 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.325 24556 24585 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.586 24602 24614 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1
+09-04 22:19:02.586 24602 24614 F DEBUG   : pid: 24602, tid: 24614, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1 <<<
+09-04 22:19:02.586 24602 24614 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:19:02.586 24602 24614 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.586 24602 24614 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.586 24602 24614 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.586 24602 24614 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.586 24602 24614 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.586 24602 24614 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.586 24602 24614 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:02.586 24602 24614 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:06.522 24650 24661 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1
+09-04 22:19:06.522 24650 24661 F DEBUG   : pid: 24650, tid: 24661, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1 <<<
+09-04 22:19:06.522 24650 24661 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:19:06.522 24650 24661 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:06.522 24650 24661 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:06.522 24650 24661 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:06.522 24650 24661 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:06.522 24650 24661 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:06.522 24650 24661 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:06.522 24650 24661 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:06.522 24650 24661 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:06.867 24664 24675 F chromium: [FATAL:gin/v8_initializer.cc:654] Error loading V8 startup snapshot file
+09-04 22:19:06.988 24664 24675 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1
+09-04 22:19:06.988 24664 24675 F DEBUG   : pid: 24664, tid: 24675, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1 <<<
+09-04 22:19:06.988 24664 24675 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:19:06.988 24664 24675 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:06.988 24664 24675 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:06.988 24664 24675 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:06.988 24664 24675 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:06.988 24664 24675 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:06.988 24664 24675 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:06.988 24664 24675 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:06.988 24664 24675 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:07.875 24676 24688 F chromium: [FATAL:gin/v8_initializer.cc:654] Error loading V8 startup snapshot file
+09-04 22:19:08.002 24676 24688 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1
+09-04 22:19:08.002 24676 24688 F DEBUG   : pid: 24676, tid: 24688, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1 <<<
+09-04 22:19:08.002 24676 24688 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:19:08.002 24676 24688 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.002 24676 24688 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.002 24676 24688 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.002 24676 24688 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.002 24676 24688 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.002 24676 24688 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.002 24676 24688 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.002 24676 24688 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.157 24689 24699 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1
+09-04 22:19:08.157 24689 24699 F DEBUG   : pid: 24689, tid: 24699, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1 <<<
+09-04 22:19:08.157 24689 24699 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:19:08.157 24689 24699 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.157 24689 24699 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.157 24689 24699 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.157 24689 24699 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.157 24689 24699 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.157 24689 24699 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.157 24689 24699 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.157 24689 24699 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.285 24701 24711 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1
+09-04 22:19:08.285 24701 24711 F DEBUG   : pid: 24701, tid: 24711, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1 <<<
+09-04 22:19:08.285 24701 24711 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:19:08.285 24701 24711 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.285 24701 24711 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.285 24701 24711 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.285 24701 24711 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.285 24701 24711 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.285 24701 24711 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.285 24701 24711 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.285 24701 24711 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.336 24220 24220 E chromium: [ERROR:extensions/browser/crx_installer.cc:1059] [Cloak] CrxInstaller
+failure type=2 message=Could not unzip extension
+09-04 22:19:08.480 24713 24723 F DEBUG   : Cmdline:
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1
+09-04 22:19:08.480 24713 24723 F DEBUG   : pid: 24713, tid: 24723, name: ChildProcessMai  >>>
+net.quetta.browser.zetalite:sandboxed_process0:org.chromium.content.app.SandboxedProcessService0:1 <<<
+09-04 22:19:08.480 24713 24723 F DEBUG   : Abort message: '[FATAL:gin/v8_initializer.cc:654] Error loading V8 startup
+snapshot file'
+09-04 22:19:08.480 24713 24723 F DEBUG   :       #00 pc 00000000059eec44
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.480 24713 24723 F DEBUG   :       #01 pc 0000000007c6a3ac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.480 24713 24723 F DEBUG   :       #02 pc 0000000007f6099c
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.480 24713 24723 F DEBUG   :       #03 pc 00000000077e54fc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.480 24713 24723 F DEBUG   :       #04 pc 000000000967dcac
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.480 24713 24723 F DEBUG   :       #05 pc 00000000059dcfec
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.480 24713 24723 F DEBUG   :       #06 pc 0000000007e8a9cc
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.480 24713 24723 F DEBUG   :       #07 pc 0000000007e8a794
+/data/app/~~FKDBlNRK9LkfSb8TDGoXxA==/net.quetta.browser.zetalite-5RtxEiPxaRczq8f1poqB8g==/base.apk!libchrome.so
+(BuildId: 9c0fd53b36673bdac3b4af83b5c09d98268f6b01)
+09-04 22:19:08.536 24220 24220 E chromium: [ERROR:extensions/browser/crx_installer.cc:1059] [Cloak] CrxInstaller
+failure type=2 message=Could not unzip extension
+
+
+CF-MANAGER C:\Users\akasa\AppData\Local\Android\Sdk\platform-tools> \
