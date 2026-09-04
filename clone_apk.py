@@ -278,45 +278,52 @@ def replace_manifest_in_apk(apk_path, new_manifest_bytes):
 
 
 def patch_smali_only(decoded_dir, old_pkg, new_pkg):
-    """Patch ALL smali files (class refs + string literals) and move class files.
-    Does NOT touch the manifest (it's kept as binary for separate patching)."""
-    old_pkg_dot = old_pkg
-    new_pkg_dot = new_pkg
-    old_pkg_slash = old_pkg.replace(".", "/")
-    new_pkg_slash = new_pkg.replace(".", "/")
+    """Patch ONLY string literals in smali files. Do NOT move class files
+    and do NOT patch Lnet/quetta/browser/ class references.
 
-    # Phase 1: replace old package with placeholders
+    CRITICAL: Java class paths (Lnet/quetta/browser/Foo;) must stay unchanged
+    because the manifest's android:name attributes reference classes by their
+    original FQCN (e.g. net.quetta.browser.videoplay.QuettaVideoPlayActivity).
+    If we move the class files, the manifest can't find them -> ClassNotFoundException
+    -> instant crash on launch.
+
+    We only patch STRING LITERALS (const-string instructions) that reference
+    the package name for:
+      - Content provider URIs: "content://net.quetta.browser.X"
+      - Permission registration: "net.quetta.browser.permission.CHILD_SERVICE"
+      - SharedPreferences keys: "net.quetta.browser.videoplay.view.LongPressedKey"
+      - etc.
+
+    These string literals must match the re-prefixed manifest values, otherwise
+    runtime queries (getContentResolver().query(...), checkPermission(...),
+    registerReceiver(...)) would fail.
+    """
+    old_pkg_dot = old_pkg          # net.quetta.browser
+    new_pkg_dot = new_pkg          # net.quetta.browser.zetalite
+
+    # Phase 1: replace old package with placeholder in STRING LITERALS only.
+    # In smali, string literals are inside const-string instructions:
+    #   const-string v0, "net.quetta.browser.permission.CHILD_SERVICE"
+    # We match the opening quote to ensure we only patch strings, not class refs.
     for smali_file in decoded_dir.rglob("*.smali"):
         text = smali_file.read_text(encoding="utf-8", errors="surrogateescape")
-        text = text.replace(old_pkg_slash + "/", "__PKG_SLASH__/")
-        text = text.replace(old_pkg_dot + ".", "__PKG_DOT__.")
-        text = text.replace(old_pkg_dot + ";", "__PKG_DOT__;")
-        text = text.replace(old_pkg_dot + '"', '__PKG_DOT__"')
+        # Patch string literals: "net.quetta.browser. -> "net.quetta.browser.<clone>.
+        text = text.replace('"' + old_pkg_dot + '.', '"__PKG_DOT__.')
+        # Patch: "net.quetta.browser; (in semicolon-separated lists)
+        text = text.replace('"' + old_pkg_dot + ';', '"__PKG_DOT__;')
+        # Patch: "net.quetta.browser" (bare, at end of string)
+        text = text.replace('"' + old_pkg_dot + '"', '"__PKG_DOT__"')
         smali_file.write_text(text, encoding="utf-8", errors="surrogateescape")
 
-    # Phase 2: replace placeholders with new package
+    # Phase 2: replace placeholder with new package
     for smali_file in decoded_dir.rglob("*.smali"):
         text = smali_file.read_text(encoding="utf-8", errors="surrogateescape")
-        text = text.replace("__PKG_SLASH__", new_pkg_slash)
-        text = text.replace("__PKG_DOT__", new_pkg_dot)
+        text = text.replace('__PKG_DOT__', new_pkg_dot)
         smali_file.write_text(text, encoding="utf-8", errors="surrogateescape")
 
-    # Move Java class files: net/quetta/browser/* -> net/quetta/browser/<clone>/*
-    suffix_last = new_pkg_slash.split("/")[-1]
-    for smali_dir in decoded_dir.iterdir():
-        if not smali_dir.name.startswith("smali") or not smali_dir.is_dir():
-            continue
-        old_pkg_dir = smali_dir / old_pkg_slash
-        if old_pkg_dir.is_dir():
-            new_pkg_dir = smali_dir / new_pkg_slash
-            new_pkg_dir.mkdir(parents=True, exist_ok=True)
-            for item in old_pkg_dir.iterdir():
-                if item.name == suffix_last:
-                    continue
-                target = new_pkg_dir / item.name
-                if target.exists():
-                    continue
-                shutil.move(str(item), str(target))
+    # DO NOT move class files. DO NOT patch Lnet/quetta/browser/ references.
+    # The manifest references classes by their original FQCN, so the classes
+    # must stay at their original package path.
 
 
 def build_clone(base_apk, split_apks, name, suffix, out_dir, keystore,
