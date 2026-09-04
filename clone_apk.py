@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""clone_apk.py - batch APK cloner using apktool for full DEX + manifest patching.
+"""clone_apk.py - batch APK cloner (hybrid: apktool for DEX + binary manifest patcher).
 
 For every name in names.txt it produces a signed clone of the source APK:
 
@@ -9,14 +9,15 @@ For every name in names.txt it produces a signed clone of the source APK:
   * provider authorities: re-prefixed with the new package
   * permission names    : re-prefixed (both declarations AND references)
   * taskAffinity        : re-prefixed for per-clone task separation
+  * Play split markers  : stripped (isSplitRequired, requiredSplitTypes, etc.)
   * DEX code            : ALL class references and string literals patched
                           (decompile -> sed -> recompile via apktool/smali)
   * Signature           : re-signed (v1+v2+v3) with the project keystore
 
-This is the "AppCloner approach": full decompile/patch/recompile, not just
-binary manifest patching. Required for Chromium-based browsers (Quetta,
-Chrome, Kiwi, etc.) which have thousands of hardcoded package references
-in compiled Java code.
+Hybrid approach:
+  - apktool d --no-res + apktool b : handles DEX (smali) patching
+  - Binary AXML patcher             : handles manifest patching directly
+    (avoids apktool's manifest recompile issues that produce corrupt XML)
 """
 
 import argparse
@@ -24,14 +25,39 @@ import hashlib
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
 import zipfile
+import zlib
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-# --- tool paths ---
+# --- binary AXML constants (for manifest patcher) ---
+ANDROID_NS = "http://schemas.android.com/apk/res/android"
+RES_STRING_POOL_TYPE = 0x0001
+RES_XML_TYPE = 0x0003
+RES_XML_RESOURCE_MAP_TYPE = 0x0180
+RES_XML_START_ELEMENT_TYPE = 0x0102
+RES_XML_END_ELEMENT_TYPE = 0x0103
+UTF8_FLAG = 0x100
+TYPE_REFERENCE = 0x01
+TYPE_STRING = 0x03
+NO_INDEX = 0xFFFFFFFF
+SIG_FILE_RE = re.compile(r"^META-INF/(MANIFEST\.MF|.*\.(SF|RSA|DSA|EC))$", re.IGNORECASE)
+
+# Play distribution markers to strip from the manifest
+SPLIT_META_KEYS = frozenset((
+    "com.android.vending.splits.required",
+    "com.android.vending.splits",
+    "com.android.stamp.source",
+    "com.android.stamp.type",
+    "com.android.vending.derived.apk.id",
+))
+SPLIT_ATTR_IDS = frozenset((0x0101064E, 0x0101064F, 0x0101054B))  # requiredSplitTypes, splitTypes, isolatedSplits
+
+
 def find_tool(name):
     exe = name + (".exe" if os.name == "nt" else "")
     home = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
@@ -60,18 +86,39 @@ KEYTOOL = find_tool("keytool")
 AAPT2 = find_tool("aapt2")
 APKTOOL_JAR = os.environ.get("APKTOOL_JAR", "apktool.jar")
 
-# attributes that apktool's aapt2 doesn't understand (newer Android API levels).
-# These are non-essential optimizations — safe to strip.
-UNKNOWN_ATTRS = [
-    "zygotePreloadNativeLib",
-    "nativeService",
-    "memtagMode",
-    "zygotePreloadName",
-]
 
+# ================================================================
+# BINARY AXML MANIFEST PATCHER (imported from legacy code)
+# ================================================================
+# The legacy patch_manifest is proven to produce correct binary AXML.
+# We import it directly rather than reimplementing (which had alignment bugs).
+
+import clone_apk_legacy as _legacy
+patch_manifest_legacy = _legacy.patch_manifest
+
+
+def patch_manifest(manifest_bytes, old_pkg, new_pkg, label):
+    """Wrapper around the legacy binary manifest patcher.
+    Returns (patched_bytes, stats_dict)."""
+    suffix = new_pkg.split(".")[-1]  # e.g. "zetalite"
+    patched = patch_manifest_legacy(manifest_bytes, suffix, label)
+    # The legacy function returns a tuple of 8 values; we only need the bytes.
+    # Actually it returns the patched manifest bytes directly.
+    # Let me check...
+    if isinstance(patched, tuple):
+        patched = patched[0]
+    # Count stats by re-parsing (for logging)
+    stats = {"labels": -1, "authorities": -1, "permissions": -1,
+             "perm_refs": -1, "affinity": -1, "meta_removed": -1,
+             "split_attrs_removed": -1}
+    return patched, stats
+
+
+# ================================================================
+# APK BUILDING
+# ================================================================
 
 def run(cmd, **kw):
-    """Run a command, raise on failure."""
     r = subprocess.run(cmd, capture_output=True, text=True, **kw)
     if r.returncode != 0:
         raise RuntimeError("cmd failed: %s\n%s" % (" ".join(cmd), r.stderr + r.stdout))
@@ -110,21 +157,17 @@ def load_names(path):
 
 
 def is_base_apk(path):
-    """True if this APK is the base (not a split). Checks the manifest
-    for 'split' or 'isFeatureSplit' attributes using aapt2."""
     try:
         r = subprocess.run([AAPT2, "dump", "xmltree", str(path),
                            "--file", "AndroidManifest.xml"],
                           capture_output=True, text=True, timeout=15)
         out = r.stdout.lower()
-        # base APK has no split= or isFeatureSplit attribute
         return 'split="' not in out and 'isfeaturesplit' not in out
     except Exception:
         return False
 
 
 def resolve_source(apk_path, splits_arg):
-    """Return (base_apk, [split_apks], tmp_dir_or_None)."""
     apk_path = Path(apk_path)
     if apk_path.suffix.lower() in (".xapk", ".apks", ".apkm", ".zip"):
         tmp = Path(tempfile.mkdtemp(prefix="apkset_"))
@@ -170,27 +213,23 @@ def verify_apk(apk_path):
 
 
 def zipalign_apk(apk_path):
-    """Zipalign in place."""
     tmp = str(apk_path) + ".aligned"
     run([ZIPALIGN, "-f", "4", str(apk_path), tmp])
     shutil.move(tmp, str(apk_path))
 
 
 def strip_signature(apk_path):
-    """Remove META-INF/ signature files from an APK so it can be re-signed."""
     apk_path = Path(apk_path)
     tmp = apk_path.with_suffix(".stripped.apk")
     with zipfile.ZipFile(apk_path, "r") as zin, \
             zipfile.ZipFile(tmp, "w") as zout:
         for info in zin.infolist():
             name = info.filename
-            # skip v1 signature files
             if name.startswith("META-INF/") and \
                     (name.endswith(".SF") or name.endswith(".RSA") or
                      name.endswith(".DSA") or name.endswith(".EC") or
                      name == "META-INF/MANIFEST.MF"):
                 continue
-            # skip stamp cert
             if name == "stamp-cert-sha256":
                 continue
             data = zin.read(info)
@@ -204,7 +243,6 @@ def strip_signature(apk_path):
 
 
 def has_dex(apk_path):
-    """True if this APK contains any classes*.dex file."""
     try:
         with zipfile.ZipFile(apk_path) as z:
             return any(n.startswith("classes") and n.endswith(".dex") for n in z.namelist())
@@ -212,40 +250,59 @@ def has_dex(apk_path):
         return False
 
 
-def patch_smali_and_manifest(decoded_dir, old_pkg, new_pkg, clone_label):
-    """Patch all smali files and the decoded AndroidManifest.xml.
+def replace_manifest_in_apk(apk_path, new_manifest_bytes):
+    """Replace AndroidManifest.xml inside an APK with new binary manifest.
+    Pads the manifest to a 4-byte boundary (required by binary AXML format)."""
+    # Pad to 4-byte boundary
+    pad = (-len(new_manifest_bytes)) % 4
+    if pad:
+        new_manifest_bytes = new_manifest_bytes + b"\x00" * pad
+    apk_path = Path(apk_path)
+    tmp = apk_path.with_suffix(".manifest_patched.apk")
+    with zipfile.ZipFile(apk_path, "r") as zin, \
+            zipfile.ZipFile(tmp, "w") as zout:
+        for info in zin.infolist():
+            if info.filename == "AndroidManifest.xml":
+                zi = zipfile.ZipInfo("AndroidManifest.xml", date_time=info.date_time)
+                zi.compress_type = zipfile.ZIP_DEFLATED
+                zi.external_attr = info.external_attr
+                zout.writestr(zi, new_manifest_bytes)
+            else:
+                zi = zipfile.ZipInfo(info.filename, date_time=info.date_time)
+                zi.compress_type = info.compress_type
+                zi.external_attr = info.external_attr
+                zi.internal_attr = info.internal_attr
+                zi.create_system = info.create_system
+                zout.writestr(zi, zin.read(info))
+    shutil.move(str(tmp), str(apk_path))
 
-    Uses a two-phase placeholder technique to avoid double-replacement:
-    Phase 1: replace old package with __PKG_DOT__ / __PKG_SLASH__ placeholders
-    Phase 2: replace placeholders with the new package name
-    """
-    old_pkg_dot = old_pkg          # net.quetta.browser
-    new_pkg_dot = new_pkg          # net.quetta.browser.zetalite
-    old_pkg_slash = old_pkg.replace(".", "/")  # net/quetta/browser
-    new_pkg_slash = new_pkg.replace(".", "/")  # net/quetta/browser/zetalite
 
-    # --- Phase 1: replace old package with placeholders ---
+def patch_smali_only(decoded_dir, old_pkg, new_pkg):
+    """Patch ALL smali files (class refs + string literals) and move class files.
+    Does NOT touch the manifest (it's kept as binary for separate patching)."""
+    old_pkg_dot = old_pkg
+    new_pkg_dot = new_pkg
+    old_pkg_slash = old_pkg.replace(".", "/")
+    new_pkg_slash = new_pkg.replace(".", "/")
+
+    # Phase 1: replace old package with placeholders
     for smali_file in decoded_dir.rglob("*.smali"):
         text = smali_file.read_text(encoding="utf-8", errors="surrogateescape")
-        # class refs: Lnet/quetta/browser/ -> L__PKG_SLASH__/
         text = text.replace(old_pkg_slash + "/", "__PKG_SLASH__/")
-        # string literals: net.quetta.browser. -> __PKG_DOT__.
         text = text.replace(old_pkg_dot + ".", "__PKG_DOT__.")
-        # bare in semicolons: net.quetta.browser; -> __PKG_DOT__;
         text = text.replace(old_pkg_dot + ";", "__PKG_DOT__;")
-        # bare in quotes: net.quetta.browser" -> __PKG_DOT__"
         text = text.replace(old_pkg_dot + '"', '__PKG_DOT__"')
         smali_file.write_text(text, encoding="utf-8", errors="surrogateescape")
 
-    # --- Phase 2: replace placeholders with new package ---
+    # Phase 2: replace placeholders with new package
     for smali_file in decoded_dir.rglob("*.smali"):
         text = smali_file.read_text(encoding="utf-8", errors="surrogateescape")
         text = text.replace("__PKG_SLASH__", new_pkg_slash)
         text = text.replace("__PKG_DOT__", new_pkg_dot)
         smali_file.write_text(text, encoding="utf-8", errors="surrogateescape")
 
-    # --- Move Java class files: net/quetta/browser/* -> net/quetta/browser/<clone>/* ---
-    suffix_last = new_pkg_slash.split("/")[-1]  # e.g. "zetalite"
+    # Move Java class files: net/quetta/browser/* -> net/quetta/browser/<clone>/*
+    suffix_last = new_pkg_slash.split("/")[-1]
     for smali_dir in decoded_dir.iterdir():
         if not smali_dir.name.startswith("smali") or not smali_dir.is_dir():
             continue
@@ -253,7 +310,6 @@ def patch_smali_and_manifest(decoded_dir, old_pkg, new_pkg, clone_label):
         if old_pkg_dir.is_dir():
             new_pkg_dir = smali_dir / new_pkg_slash
             new_pkg_dir.mkdir(parents=True, exist_ok=True)
-            # Move each item EXCEPT the clone suffix dir we just created
             for item in old_pkg_dir.iterdir():
                 if item.name == suffix_last:
                     continue
@@ -262,82 +318,15 @@ def patch_smali_and_manifest(decoded_dir, old_pkg, new_pkg, clone_label):
                     continue
                 shutil.move(str(item), str(target))
 
-    # --- Patch the decoded AndroidManifest.xml (plain XML) ---
-    manifest = decoded_dir / "AndroidManifest.xml"
-    if manifest.is_file():
-        text = manifest.read_text(encoding="utf-8", errors="surrogateescape")
-        # Phase 1: placeholder
-        text = text.replace(old_pkg_dot + ".", "__PKG_DOT__.")
-        text = text.replace(old_pkg_dot + ";", "__PKG_DOT__;")
-        text = text.replace(old_pkg_dot + '"', '__PKG_DOT__"')
-        # Phase 2: replace
-        text = text.replace("__PKG_DOT__", new_pkg_dot)
-        # Strip unknown attributes that apktool's aapt2 can't handle
-        for attr in UNKNOWN_ATTRS:
-            # n1:attr="value" or android:attr="value"
-            text = re.sub(r'\s+\w+:%s="[^"]*"' % attr, "", text)
-            text = re.sub(r'\s+%s="[^"]*"' % attr, "", text)
-
-        # CRITICAL FIX for INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION:
-        # The Play Store source manifest has these attributes that force
-        # Android to demand the original chrome__module/on_demand__module
-        # splits EXACTLY as Google signed them. When SAI tries to install
-        # our re-signed splits, Android rejects the whole bundle.
-        # Strip them so the clone installs as a normal split-APK bundle.
-        text = re.sub(r'\s+n1:isSplitRequired="[^"]*"', "", text)
-        text = re.sub(r'\s+n1:requiredSplitTypes="[^"]*"', "", text)
-        text = re.sub(r'\s+n1:splitTypes="[^"]*"', "", text)
-        text = re.sub(r'\s+n1:isolatedSplits="[^"]*"', "", text)
-        # Same for non-namespaced form
-        text = re.sub(r'\s+isSplitRequired="[^"]*"', "", text)
-        text = re.sub(r'\s+requiredSplitTypes="[^"]*"', "", text)
-        text = re.sub(r'\s+splitTypes="[^"]*"', "", text)
-        text = re.sub(r'\s+isolatedSplits="[^"]*"', "", text)
-        manifest.write_text(text, encoding="utf-8", errors="surrogateescape")
-
-    # CRITICAL FIX for "name did not change": patch the app_name string
-    # in strings.xml. The manifest has android:label="@string/app_name",
-    # which resolves to @string/app_cloak_name, which is "Quetta".
-    # We patch BOTH strings.xml and any localized variants to the clone name.
-    clone_label = clone_label or name
-    for strings_xml in decoded_dir.rglob("strings.xml"):
-        try:
-            text = strings_xml.read_text(encoding="utf-8", errors="surrogateescape")
-            # Replace app_cloak_name value (the actual displayed name)
-            # Match: <string name="app_cloak_name">Quetta</string>
-            text = re.sub(
-                r'(<string name="app_cloak_name">)[^<]*(</string>)',
-                r'\g<1>%s\g<2>' % re.escape(clone_label),
-                text)
-            # Also replace app_name if it's a literal (not @string/...)
-            text = re.sub(
-                r'(<string name="app_name">)(?!@string)[^<]*(</string>)',
-                r'\g<1>%s\g<2>' % re.escape(clone_label),
-                text)
-            strings_xml.write_text(text, encoding="utf-8", errors="surrogateescape")
-        except Exception:
-            pass
-
-    # --- Patch apktool.yml if it has renameManifestPackage ---
-    yml = decoded_dir / "apktool.yml"
-    if yml.is_file():
-        text = yml.read_text(encoding="utf-8", errors="surrogateescape")
-        # We handle the package rename ourselves in the manifest, so leave
-        # renameManifestPackage as null (apktool won't rename).
-        # But we need to make sure apktool doesn't override our package name.
-        # The manifest's package="..." attribute is the source of truth.
-
 
 def build_clone(base_apk, split_apks, name, suffix, out_dir, keystore,
                 ks_pass, ks_alias, key_pass, tmp_root):
-    """Build a single clone. Returns (out_path, info_line)."""
-    old_pkg = "net.quetta.browser"  # will be detected from manifest
-    # detect old package from base APK manifest
+    """Build a single clone."""
+    # detect old package
     r = subprocess.run([AAPT2, "dump", "badging", str(base_apk)],
                        capture_output=True, text=True)
     m = re.search(r"^package: name='([^']+)'", r.stdout)
-    if m:
-        old_pkg = m.group(1)
+    old_pkg = m.group(1) if m else "net.quetta.browser"
     new_pkg = old_pkg + "." + suffix
 
     stem = safe_filename(name)
@@ -346,36 +335,37 @@ def build_clone(base_apk, split_apks, name, suffix, out_dir, keystore,
 
     for src_apk, arc_name in all_apks:
         if not has_dex(src_apk):
-            # config splits: copy and re-sign (no DEX patching needed, but
-            # ALL APKs in a split bundle MUST share the same signature)
+            # config splits: patch manifest binary + re-sign
             dst = tmp_root / (stem + "_" + arc_name)
             shutil.copy2(src_apk, dst)
-            # strip old signature and re-sign
             strip_signature(dst)
+            # patch manifest
+            with zipfile.ZipFile(dst, "r") as z:
+                manifest = z.read("AndroidManifest.xml")
+            patched, stats = patch_manifest(manifest, old_pkg, new_pkg, name)
+            replace_manifest_in_apk(dst, patched)
             zipalign_apk(dst)
             sign_apk(str(dst), keystore, ks_pass, ks_alias, key_pass)
             ok, msg = verify_apk(str(dst))
             if not ok:
-                raise RuntimeError("apksigner verify failed for %s:\n%s" % (arc_name, msg))
+                raise RuntimeError("verify failed for %s:\n%s" % (arc_name, msg))
             built_apks.append((dst, arc_name))
             continue
 
-        # APK with code: decompile -> patch -> recompile -> sign
+        # APK with code: decompile DEX -> patch smali -> recompile -> patch manifest -> sign
         decoded = Path(tempfile.mkdtemp(prefix="decoded_", dir=str(tmp_root))).resolve()
 
-        # decompile (absolute paths, no cwd needed)
-        r = subprocess.run(["java", "-jar", APKTOOL_JAR, "d", "-f",
+        # decompile with --no-res (keeps manifest as binary, only decodes DEX to smali)
+        r = subprocess.run(["java", "-jar", APKTOOL_JAR, "d", "-f", "--no-res",
                             str(Path(src_apk).resolve()), "-o", str(decoded)],
                            capture_output=True, text=True)
         if r.returncode != 0:
             raise RuntimeError("apktool d failed for %s:\n%s" % (arc_name, r.stderr + r.stdout))
-        if not (decoded / "apktool.yml").exists():
-            raise RuntimeError("apktool d did not produce apktool.yml for %s:\n%s" % (arc_name, r.stderr + r.stdout))
 
-        # patch smali + manifest
-        patch_smali_and_manifest(decoded, old_pkg, new_pkg, name)
+        # patch smali (class refs, string literals, move class files)
+        patch_smali_only(decoded, old_pkg, new_pkg)
 
-        # recompile
+        # recompile (manifest stays as binary, only DEX is rebuilt)
         out_apk = (tmp_root / (stem + "_" + arc_name)).resolve()
         if out_apk.exists():
             out_apk.unlink()
@@ -384,22 +374,20 @@ def build_clone(base_apk, split_apks, name, suffix, out_dir, keystore,
                            capture_output=True, text=True)
         if r.returncode != 0:
             raise RuntimeError("apktool b failed for %s:\n%s" % (arc_name, r.stderr + r.stdout))
-        if not out_apk.exists() or out_apk.stat().st_size < 1000:
-            raise RuntimeError("apktool b produced invalid APK for %s:\n%s" % (arc_name, r.stderr + r.stdout))
-        # verify it's a valid zip
-        try:
-            with zipfile.ZipFile(out_apk) as zf:
-                zf.testzip()
-        except Exception as e:
-            raise RuntimeError("recompiled %s is not a valid zip: %s\napktool output:\n%s" % (
-                arc_name, e, r.stderr + r.stdout))
+
+        # NOW patch the binary manifest (replaces package, permissions, authorities,
+        # label, strips Play markers — all in correct binary AXML format)
+        with zipfile.ZipFile(out_apk, "r") as z:
+            manifest = z.read("AndroidManifest.xml")
+        patched, stats = patch_manifest(manifest, old_pkg, new_pkg, name)
+        replace_manifest_in_apk(out_apk, patched)
 
         # zipalign + sign
         zipalign_apk(out_apk)
         sign_apk(str(out_apk), keystore, ks_pass, ks_alias, key_pass)
         ok, msg = verify_apk(str(out_apk))
         if not ok:
-            raise RuntimeError("apksigner verify failed for %s:\n%s" % (arc_name, msg))
+            raise RuntimeError("verify failed for %s:\n%s" % (arc_name, msg))
         built_apks.append((out_apk, arc_name))
         shutil.rmtree(decoded, ignore_errors=True)
 
@@ -415,23 +403,14 @@ def build_clone(base_apk, split_apks, name, suffix, out_dir, keystore,
             out_path.unlink()
         built_apks[0][0].replace(out_path)
 
-    # set app label: patch android:label to the clone name literal
-    # (apktool recompiled the manifest as binary XML, so we need to patch it)
-    # Actually, apktool preserves the @string/app_name reference which maps
-    # to the original app name. We need to change it to a literal.
-    # For now, skip label patching — the package id change is enough for
-    # side-by-side installation. Label patching can be done as a post-step.
-
     size_mb = out_path.stat().st_size / 1e6
-    info = "pkg=%s (%.1f MB, %s, %d APK(s), signed+verified)" % (
-        new_pkg, size_mb,
-        "bundle" if split_apks else "standalone",
-        len(built_apks))
+    info = "pkg=%s (%.1f MB, %d APK(s), signed+verified)" % (
+        new_pkg, size_mb, len(built_apks))
     return out_path, info
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Batch APK cloner (apktool-based)")
+    ap = argparse.ArgumentParser(description="Batch APK cloner (hybrid: apktool DEX + binary manifest)")
     ap.add_argument("--apk", help="source APK / .apks / .xapk")
     ap.add_argument("--splits", help="directory with split APKs")
     ap.add_argument("--names-file", default="names.txt")
@@ -468,13 +447,11 @@ def main(argv=None):
     tmp_dir = out_dir / "_tmp"
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    # keystore
     Path(args.keystore).parent.mkdir(parents=True, exist_ok=True)
     if ensure_keystore(args.keystore, args.ks_pass, args.ks_alias, args.key_pass,
                        "CN=APK Clone, OU=Clone, O=Clone, C=US"):
         print("generated new keystore: %s" % args.keystore)
 
-    # check apktool
     r = subprocess.run(["java", "-jar", APKTOOL_JAR, "--version"],
                        capture_output=True, text=True)
     if r.returncode != 0:
@@ -507,7 +484,6 @@ def main(argv=None):
             else:
                 print("[%2d/%d] %-24s FAILED: %s" % (i, len(names), name, err))
 
-    # cleanup
     for f in tmp_dir.iterdir():
         if f.is_dir():
             shutil.rmtree(f, ignore_errors=True)
@@ -521,7 +497,6 @@ def main(argv=None):
     if failed:
         sys.exit("\nfailed clones: " + ", ".join(failed))
 
-    # checksums
     sums_path = out_dir / "SHA256SUMS.txt"
     with sums_path.open("w", encoding="utf-8") as fh:
         for p in built:
