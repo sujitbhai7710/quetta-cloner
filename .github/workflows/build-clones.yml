@@ -170,6 +170,15 @@ jobs:
           wget -q https://github.com/REAndroid/APKEditor/releases/download/V1.4.9/APKEditor-1.4.9.jar -O /usr/local/bin/APKEditor.jar
           echo "APKEDITOR_JAR=/usr/local/bin/APKEditor.jar" >> "$GITHUB_ENV"
 
+      - name: Compile QuettaClone.java (BFE-matching ARSCLib wrapper)
+        run: |
+          set -euo pipefail
+          # GitHub Actions ubuntu-latest has JDK 17+ with javac
+          javac -cp /usr/local/bin/APKEditor.jar QuettaClone.java
+          # Package into a jar for classpath convenience
+          jar cf QuettaClone.jar QuettaClone.class QuettaClone\$1.class
+          echo "QUETTA_CLONE_JAR=$PWD/QuettaClone.jar" >> "$GITHUB_ENV"
+
       - name: Get source APK
         uses: actions/download-artifact@v4
         with:

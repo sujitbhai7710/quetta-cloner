@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""clone_apk.py - batch APK cloner (BFE-matching logic, ARSCLib-based).
+"""clone_apk.py - batch APK cloner using QuettaClone.jar (ARSCLib, BFE-matching).
 
-Mirrors exactly what BFE's ApkRewriter does:
-  - Merges split APKs into a single standalone APK (APKEditor merge)
-  - Decodes to XML manifest + resources (APKEditor decode)
-  - Patches ONLY the manifest XML (package, permissions, authorities, label,
-    taskAffinity) — does NOT touch DEX/smali
-  - Patches strings.xml for app label
-  - Builds back (APKEditor build) — ARSCLib handles resources.arsc rename
-  - Signs with per-clone persistent keystore
+This uses a Java wrapper (QuettaClone.java) that calls ARSCLib directly —
+exactly the same API BFE uses (ApkModule, AndroidManifestBlock, setPackageName).
+No XML decode/rebuild, no DEX patching. The binary manifest and resources.arsc
+are patched in-place, atomically, via ARSCLib.
 
-CRITICAL: We do NOT patch smali. BFE proved that patching only the manifest
-is enough. Patching DEX string literals breaks Class.forName() calls and
-other reflection, causing delayed crashes (30-40s after launch).
+Flow (mirrors BFE's ApkRewriter.rewrite + renamePackage):
+  1. QuettaClone merges splits, patches manifest, renames package (manifest +
+     resources.arsc together via module.setPackageName)
+  2. Python signs the result with per-clone keystore
+
+Usage:
+  python clone_apk.py --apk source.xapk --only "ZetaLite,AcxIrnoy" --out dist
 """
 
 import argparse
@@ -24,7 +24,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import zipfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -53,8 +52,10 @@ def find_tool(name):
 APKSIGNER = find_tool("apksigner")
 ZIPALIGN = find_tool("zipalign")
 KEYTOOL = find_tool("keytool")
-AAPT2 = find_tool("aapt2")
 APKEDITOR_JAR = os.environ.get("APKEDITOR_JAR", "APKEditor.jar")
+# QuettaClone.jar is built from QuettaClone.java (committed to repo)
+QUETTA_CLONE_JAR = os.environ.get("QUETTA_CLONE_JAR",
+    str(Path(__file__).parent / "QuettaClone.jar"))
 
 
 def run(cmd, **kw):
@@ -115,183 +116,46 @@ def verify_apk(apk_path):
     return res.returncode == 0, (res.stdout + res.stderr).strip()
 
 
-def zipalign_apk(apk_path):
-    tmp = str(apk_path) + ".aligned"
-    run([ZIPALIGN, "-f", "4", str(apk_path), tmp])
-    shutil.move(tmp, str(apk_path))
-
-
-def apkeditor_merge(input_path, output_path):
-    r = subprocess.run(["java", "-jar", APKEDITOR_JAR, "m", "-i", str(input_path),
-                       "-o", str(output_path), "-f"],
-                      capture_output=True, text=True)
-    if r.returncode != 0 or not Path(output_path).exists():
-        raise RuntimeError("APKEditor merge failed:\n%s" % (r.stderr + r.stdout))
-
-
-def apkeditor_decode(input_path, output_dir):
-    r = subprocess.run(["java", "-jar", APKEDITOR_JAR, "d", "-t", "xml",
-                        "-i", str(input_path), "-o", str(output_dir), "-f"],
-                       capture_output=True, text=True)
-    if r.returncode != 0 or not (Path(output_dir) / "AndroidManifest.xml").exists():
-        raise RuntimeError("APKEditor decode failed:\n%s" % (r.stderr + r.stdout))
-
-
-def apkeditor_build(input_dir, output_path):
-    r = subprocess.run(["java", "-jar", APKEDITOR_JAR, "b", "-i", str(input_dir),
-                        "-o", str(output_path), "-f"],
-                       capture_output=True, text=True)
-    if r.returncode != 0 or not Path(output_path).exists():
-        raise RuntimeError("APKEditor build failed:\n%s" % (r.stderr + r.stdout))
-
-
-def patch_manifest_xml(manifest_path, old_pkg, new_pkg, clone_label):
-    """Patch the decoded AndroidManifest.xml (plain XML).
-
-    Exactly mirrors BFE's ApkRewriter.renamePackage():
-    1. Provider authorities re-prefixed
-    2. Permission declarations re-prefixed
-    3. Permission references (android:permission etc.) re-prefixed
-    4. taskAffinity re-prefixed
-    5. Package name renamed
-
-    Does NOT touch component class names (they're already absolute in Quetta).
-    Does NOT touch sharedUserId (Quetta doesn't use it).
-    """
-    text = manifest_path.read_text(encoding="utf-8", errors="surrogateescape")
-
-    # Use placeholder to avoid double-replacement
-    # Phase 1: replace old package with placeholder
-    text = text.replace(old_pkg + ".", "__PKG_DOT__.")
-    text = text.replace(old_pkg + ";", "__PKG_DOT__;")
-    text = text.replace(old_pkg + '"', '__PKG_DOT__"')
-    text = text.replace('package="' + old_pkg + '"', 'package="__PKG_DOT__"')
-
-    # Phase 2: replace placeholder with new package
-    text = text.replace("__PKG_DOT__", new_pkg)
-
-    manifest_path.write_text(text, encoding="utf-8", errors="surrogateescape")
-
-
-def patch_strings_xml(decoded_dir, clone_label):
-    """Patch app_cloak_name and app_name in all strings.xml files."""
-    for strings_xml in decoded_dir.rglob("strings.xml"):
-        try:
-            text = strings_xml.read_text(encoding="utf-8", errors="surrogateescape")
-            text = re.sub(
-                r'(<string name="app_cloak_name">)[^<]*(</string>)',
-                r'\g<1>%s\g<2>' % re.escape(clone_label), text)
-            text = re.sub(
-                r'(<string name="app_name">)(?!@string)[^<]*(</string>)',
-                r'\g<1>%s\g<2>' % re.escape(clone_label), text)
-            strings_xml.write_text(text, encoding="utf-8", errors="surrogateescape")
-        except Exception:
-            pass
-
-
-def patch_resources_arsc_package(decoded_dir, old_pkg, new_pkg):
-    """Patch the resources.arsc package name.
-
-    CRITICAL: Chromium's renderer uses the resources.arsc package name to look
-    up @0x7f... resources. If the manifest says 'net.quetta.browser.zetalite'
-    but resources.arsc says 'net.quetta.browser', the renderer can't find
-    resources -> 'Aw Snap' / 'Can't open page' / renderer crash.
-
-    BFE does this via ApkModule.setPackageName() which renames both manifest
-    AND resources.arsc. We replicate it by patching:
-      - resources/*/package.json (package_name field)
-      - resources/*/res/values/public.xml (package="..." attribute)
-    """
-    # Patch package.json files
-    for pkg_json in decoded_dir.rglob("package.json"):
-        try:
-            text = pkg_json.read_text(encoding="utf-8", errors="surrogateescape")
-            text = text.replace(
-                '"package_name": "%s"' % old_pkg,
-                '"package_name": "%s"' % new_pkg)
-            pkg_json.write_text(text, encoding="utf-8", errors="surrogateescape")
-        except Exception:
-            pass
-
-    # Patch public.xml files (the package="..." attribute on <resources>)
-    for public_xml in decoded_dir.rglob("public.xml"):
-        try:
-            text = public_xml.read_text(encoding="utf-8", errors="surrogateescape")
-            text = text.replace(
-                'package="%s" id=' % old_pkg,
-                'package="%s" id=' % new_pkg)
-            public_xml.write_text(text, encoding="utf-8", errors="surrogateescape")
-        except Exception:
-            pass
-
-
 def build_clone(source_path, name, suffix, out_dir, keystore,
                 ks_pass, ks_alias, key_pass, tmp_root):
-    """Build a single clone. Mirrors BFE's ApkRewriter.rewrite()."""
-    is_split = source_path.suffix.lower() in (".xapk", ".apks", ".apkm", ".zip")
+    """Build a single clone using QuettaClone.jar (ARSCLib, BFE-matching)."""
+    new_pkg = "net.quetta.browser." + suffix
+    stem = safe_filename(name)
 
-    # Step 1: Merge to single APK (handles splits + Play markers)
-    if is_split:
-        merged = tmp_root / (suffix + "_merged.apk")
-        if not merged.exists():
-            apkeditor_merge(source_path, merged)
-        work_apk = merged
-    else:
-        work_apk = source_path
+    # Run QuettaClone (merge + manifest patch + package rename, all in Java via ARSCLib)
+    unsigned_apk = tmp_root / (stem + "_unsigned.apk")
+    if unsigned_apk.exists():
+        unsigned_apk.unlink()
 
-    # Detect old package
-    r = subprocess.run([AAPT2, "dump", "badging", str(work_apk)],
-                       capture_output=True, text=True)
-    m = re.search(r"^package: name='([^']+)'", r.stdout)
-    old_pkg = m.group(1) if m else "net.quetta.browser"
-    new_pkg = old_pkg + "." + suffix
+    cmd = ["java", "-cp", ".:" + APKEDITOR_JAR + ":" + QUETTA_CLONE_JAR,
+           "QuettaClone",
+           str(source_path.resolve()),
+           str(unsigned_apk.resolve()),
+           new_pkg,
+           name]
+    r = subprocess.run(cmd, capture_output=True, text=True,
+                       cwd=str(Path(__file__).parent))
+    if r.returncode != 0 or not unsigned_apk.exists():
+        raise RuntimeError("QuettaClone failed for %s:\n%s" % (name, r.stderr + r.stdout))
 
-    # Step 2: Decompile to XML (manifest + resources, NOT smali-only)
-    decoded = Path(tempfile.mkdtemp(prefix="decoded_", dir=str(tmp_root))).resolve()
-    apkeditor_decode(work_apk, decoded)
-
-    # Step 3: Patch manifest XML (package, permissions, authorities, label, taskAffinity)
-    manifest = decoded / "AndroidManifest.xml"
-    if manifest.is_file():
-        patch_manifest_xml(manifest, old_pkg, new_pkg, name)
-
-    # Step 4: Patch strings.xml (app label)
-    patch_strings_xml(decoded, name)
-
-    # Step 5: Patch resources.arsc package name (CRITICAL for Chromium renderer)
-    patch_resources_arsc_package(decoded, old_pkg, new_pkg)
-
-    # Step 6: Build APK (ARSCLib handles resources.arsc package rename via build)
-    out_apk = (tmp_root / (safe_filename(name) + ".apk")).resolve()
-    if out_apk.exists():
-        out_apk.unlink()
-    apkeditor_build(decoded, out_apk)
-
-    # Step 7: Zipalign + sign
-    zipalign_apk(out_apk)
-    sign_apk(str(out_apk), keystore, ks_pass, ks_alias, key_pass)
-    ok, msg = verify_apk(str(out_apk))
+    # Sign
+    sign_apk(str(unsigned_apk), keystore, ks_pass, ks_alias, key_pass)
+    ok, msg = verify_apk(str(unsigned_apk))
     if not ok:
         raise RuntimeError("verify failed:\n%s" % msg)
 
     # Copy to output
-    final_path = out_dir / ("%s.apk" % safe_filename(name))
+    final_path = out_dir / ("%s.apk" % stem)
     if final_path.exists():
         final_path.unlink()
-    shutil.copy2(out_apk, final_path)
-
-    # Cleanup
-    shutil.rmtree(decoded, ignore_errors=True)
-    out_apk.unlink(missing_ok=True)
-    if is_split:
-        merged.unlink(missing_ok=True)
+    shutil.move(str(unsigned_apk), str(final_path))
 
     size_mb = final_path.stat().st_size / 1e6
     return final_path, "pkg=%s (%.1f MB, standalone, signed+verified)" % (new_pkg, size_mb)
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="Batch APK cloner (BFE-matching logic)")
+    ap = argparse.ArgumentParser(description="Batch APK cloner (BFE-matching ARSCLib logic)")
     ap.add_argument("--apk", help="source APK / .apks / .xapk / .apkm")
     ap.add_argument("--names-file", default="names.txt")
     ap.add_argument("--only", help="comma-separated subset")
@@ -329,6 +193,21 @@ def main(argv=None):
                        "CN=APK Clone, OU=Clone, O=Clone, C=US"):
         print("generated new keystore: %s" % args.keystore)
 
+    # Check QuettaClone.jar exists
+    if not Path(QUETTA_CLONE_JAR).exists():
+        # Try to compile it from .java
+        java_src = Path(__file__).parent / "QuettaClone.java"
+        if java_src.exists():
+            print("Compiling QuettaClone.jar from source...")
+            r = subprocess.run(["javac", "-cp", APKEDITOR_JAR, str(java_src)],
+                               capture_output=True, text=True,
+                               cwd=str(Path(__file__).parent))
+            if r.returncode != 0:
+                sys.exit("Failed to compile QuettaClone.java:\n%s" % r.stderr)
+        else:
+            sys.exit("QuettaClone.java not found at %s" % java_src)
+
+    # Check APKEditor
     r = subprocess.run(["java", "-jar", APKEDITOR_JAR, "-h"],
                        capture_output=True, text=True)
     if "APKEditor" not in (r.stdout + r.stderr):
@@ -336,7 +215,7 @@ def main(argv=None):
 
     print("source          : %s" % source)
     print("clones to build : %d -> %s" % (len(names), out_dir))
-    print("output format   : single standalone .apk (no SAI, no DEX patching — BFE logic)")
+    print("engine          : QuettaClone (ARSCLib, BFE-matching)")
     print()
 
     def build_one(task):

@@ -21,3 +21,8 @@ keystore/
 __pycache__/
 *.pyc
 joblog.txt
+
+# Java build artifacts (compiled in CI from QuettaClone.java)
+QuettaClone.class
+QuettaClone$*.class
+QuettaClone.jar
