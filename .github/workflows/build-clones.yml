@@ -115,7 +115,7 @@ jobs:
   build:
     needs: prepare
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       max-parallel: 10
@@ -136,6 +136,12 @@ jobs:
           if ! ls "$SDK"/build-tools/*/apksigner >/dev/null 2>&1; then
             yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" "build-tools;34.0.0" > /dev/null
           fi
+
+      - name: Install apktool
+        run: |
+          set -euo pipefail
+          wget -q https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar -O /usr/local/bin/apktool.jar
+          echo "APKTOOL_JAR=/usr/local/bin/apktool.jar" >> "$GITHUB_ENV"
 
       - name: Get source APK
         uses: actions/download-artifact@v4
