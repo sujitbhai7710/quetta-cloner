@@ -105,15 +105,27 @@ zipalign -c 4 dist\zetalite.apk        # must exit 0
   downloads in a zip by platform design; release assets are the true
   no-zip, per-file download.)
 
-### Signing key across runs
+### Signing keys — per-clone, persisted in the repo
 
-By default each run generates a fresh keystore (clones from different runs
-can't update each other). To reuse one key forever, base64 the local keystore
-once and store it as the repo secret `CLONE_KEYSTORE_B64`:
+Each clone gets its **own unique signing key**, stored at
+`keystores/<name>.keystore` and **committed to the repo**. This means:
 
-```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("keystore\clone.keystore")) | Set-Clipboard
-```
+- **Updates work**: re-running the workflow produces clones signed with the
+  *same key* as last time, so Android installs them as updates over the
+  previous version (not as separate apps).
+- **Per-clone isolation**: if one clone's key is ever compromised, only that
+  one clone can be hijacked — the others are safe.
+- **New names work automatically**: when you add a new name to `names.txt`,
+  the next workflow run generates a keystore for it, commits it back to the
+  repo, and uses it for all future builds of that clone.
+
+The keystores live in `keystores/` (tracked by git). The keystore password is
+`android` — this is a *signing identity*, not a secret. Anyone with the
+keystore can sign "updates" to that clone, so don't share the repo publicly
+if you care about that (or use a private repo).
+
+**No GitHub secret setup needed** — the workflow handles keystore generation
+and persistence automatically.
 
 ## Notes / limitations
 
@@ -126,12 +138,28 @@ once and store it as the repo secret `CLONE_KEYSTORE_B64`:
 
 ## Updating clones when Quetta releases a new version
 
-1. Download the new `Quetta.apk` and re-upload it to the `apk-source` release
-   (Releases → apk-source → edit → replace the asset).
-2. Re-run the workflow (or locally: `python clone_apk.py --apk QuettaNew.apk --out dist`).
-3. Package ids come from `names.txt` and the signing key comes from
-   `CLONE_KEYSTORE_B64` / `keystore/clone.keystore` — both unchanged — so each
-   new build installs **over** the previous clone as a normal update.
+1. Download the new `Quetta.apk` (or `.xapk`) and re-upload it to the
+   `apk-source` release (Releases → apk-source → edit → replace the asset).
+2. Re-run the workflow (Actions → Build APK clones → Run workflow).
+3. The workflow reuses each clone's existing keystore from `keystores/`, so
+   every new build installs **over** the previous clone as a normal update.
+4. If you added new names to `names.txt`, the workflow auto-generates
+   keystores for them on this run and commits them.
+
+## Adding new clone names
+
+1. Edit `names.txt` — add one name per line at the end:
+   ```
+   ZetaLite
+   ToviCrawlie
+   NewName1
+   NewName2
+   ```
+2. Commit and push (or just edit on GitHub's web UI).
+3. Run the workflow (Actions → Build APK clones → Run workflow → Run).
+4. The `prepare` job detects the new names, generates keystores for them,
+   commits the keystores back to the repo, then builds all clones.
+5. New clones appear in the next release.
 
 ## Device identity (IMEI / Android ID / SIM / MAC addresses) — HONEST version
 

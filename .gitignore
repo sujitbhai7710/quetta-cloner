@@ -10,9 +10,11 @@ Quetta.apk
 *.xapk
 splits/
 
-# signing material - never commit keys
+# Per-clone keystores ARE committed (in keystores/) so updates work across runs.
+# Each clone has its own unique key. The keystore password is "android" (not
+# secret) — the keystore's purpose is signing identity, not encryption.
+# Legacy keystore/ dir (single shared key) is still ignored:
 keystore/
-*.keystore
 *.jks
 
 # python
