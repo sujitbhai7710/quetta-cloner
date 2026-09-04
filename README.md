@@ -133,20 +133,64 @@ once and store it as the repo secret `CLONE_KEYSTORE_B64`:
    `CLONE_KEYSTORE_B64` / `keystore/clone.keystore` — both unchanged — so each
    new build installs **over** the previous clone as a normal update.
 
-## Device identity (IMEI / Android ID / SIM / MAC addresses)
+## Device identity (IMEI / Android ID / SIM / MAC addresses) — HONEST version
 
-A cloned APK **cannot** change these: IMEI, SIM serial/phone number, operator,
-Wi-Fi/BT MAC and `Settings.Secure.ANDROID_ID` come from the operating system at
-runtime, not from the APK. Randomizing them per clone has to happen on the
-device. What works (per clone, because every clone has its own package id):
+**A cloned APK cannot change device identifiers by itself.** This is not a
+limitation of this cloner — it's a fundamental Android security boundary.
+Any tool that claims to spoof IMEI/MAC/etc. purely via APK patching is lying
+to you; what they actually do is bundle an Xposed/LSPosed hook module
+(which needs root) or use the in-process Java API hooks (which only affect
+what the app *sees*, not what the OS/network/other apps see).
 
-- **LSPosed module** (rooted phones): "Device Spoofing" / "Device ID Changer"
-  style modules let you assign a different fake IMEI / Android ID / MAC /
-  build fingerprint **per package** — one profile per clone.
-- **Work profile / Island / Shelter**: runs a clone in a separate profile with
-  a different Android ID, no root needed.
-- **Emulators** (LDPlayer/MuMu/AVD): change device model, IMEI and Android ID
-  per instance.
+### What works WITHOUT root (already true for every clone)
+
+| Identifier | Behavior |
+|---|---|
+| `Settings.Secure.ANDROID_ID` | Android 8+ automatically scopes this **per app-signing-key**. Since every clone is re-signed with a different keystore (or the same keystore but different package), each clone already gets a unique `ANDROID_ID` automatically. |
+| Wi-Fi MAC (as seen by apps) | Android 10+ returns `02:00:00:00:00:00` to all apps by default. Apps cannot read the real hardware MAC. |
+| Bluetooth MAC (as seen by apps) | Same — Android 6+ returns `02:00:00:00:00:00` to all apps. |
+| `Build.MODEL`, `Build.MANUFACTURER`, etc. | These are read-only system properties. The app reads them via `Build.MODEL` etc., which the JIT often inlines at compile time. Reflection patching is unreliable on Android 9+. |
+
+So out of the box, every clone already has:
+- ✅ A unique `ANDROID_ID` (Android 8+)
+- ✅ A randomized Wi-Fi MAC visible to the app (Android 10+)
+- ✅ A randomized Bluetooth MAC visible to the app (Android 6+)
+- ✅ A unique package id, so app-local data (SharedPreferences, databases) is per-clone
+
+### What CANNOT be done via APK patching (requires LSPosed + root)
+
+| Identifier | Why |
+|---|---|
+| Real IMEI / MEID / ESN | Hardware radio identifier. Apps with `READ_PRIVILEGED_PHONE_STATE` (system apps only since Android 11) read it directly from the modem. The OS doesn't expose a setter. |
+| Real SIM serial / phone number / IMSI / carrier name | Read directly from the SIM card by the OS. No app API to override the return value without root hooks. |
+| Real Wi-Fi MAC (as seen by access points) | Set by the Wi-Fi driver, not by Java. Apps can't touch it. |
+| Real Bluetooth MAC (as seen by paired devices) | Set by the Bluetooth stack at the OS level. |
+
+### How to spoof these (LSPosed module, rooted phones)
+
+Install **LSPosed** (Zygisk edition is easiest) and one of these modules:
+
+- **DeviceID Masker** — per-app IMEI / Android ID / MAC / Build fingerprint profiles
+- **XPrivacyLua** — comprehensive per-app identifier spoofing
+- **Device Emulator Pro** — full device identity spoofing (root required)
+
+Enable the module for each clone package (`net.quetta.browser.zetalite`,
+`net.quetta.browser.acxirnoy`, etc.), assign a different profile per clone,
+and the spoofed values are returned to that clone only.
+
+### Work profile (no root)
+
+If you don't want to root, use **Island** or **Shelter** to run each clone
+inside a separate work profile. Each work profile has its own `ANDROID_ID`
+and its own app storage. Limitation: you can only have one work profile per
+user, so this doesn't scale to 37 clones — but it works great for 1–3.
+
+### Emulators (LDPlayer / MuMu / AVD)
+
+Emulators let you change IMEI, Android ID, MAC, and build fingerprint per
+instance from the emulator settings. Best option if you're running clones
+on emulators rather than a real phone.
+
 - The biggest web fingerprint after that is your **IP address** — use a
   different proxy/VPN exit per clone if the site tracks it.
 
