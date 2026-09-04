@@ -324,14 +324,16 @@ def build_clone(base_apk, split_apks, name, suffix, out_dir, keystore,
             continue
 
         # APK with code: decompile -> patch -> recompile -> sign
-        decoded = Path(tempfile.mkdtemp(prefix="decoded_", dir=str(tmp_root)))
+        decoded = Path(tempfile.mkdtemp(prefix="decoded_", dir=str(tmp_root))).resolve()
 
-        # decompile
+        # decompile (absolute paths, no cwd needed)
         r = subprocess.run(["java", "-jar", APKTOOL_JAR, "d", "-f",
-                            str(src_apk), "-o", str(decoded)],
-                           capture_output=True, text=True, cwd=tmp_root)
+                            str(Path(src_apk).resolve()), "-o", str(decoded)],
+                           capture_output=True, text=True)
         if r.returncode != 0:
             raise RuntimeError("apktool d failed for %s:\n%s" % (arc_name, r.stderr + r.stdout))
+        if not (decoded / "apktool.yml").exists():
+            raise RuntimeError("apktool d did not produce apktool.yml for %s:\n%s" % (arc_name, r.stderr + r.stdout))
 
         # patch smali + manifest
         patch_smali_and_manifest(decoded, old_pkg, new_pkg, name)
