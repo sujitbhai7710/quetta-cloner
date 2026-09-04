@@ -277,9 +277,46 @@ def patch_smali_and_manifest(decoded_dir, old_pkg, new_pkg, clone_label):
             # n1:attr="value" or android:attr="value"
             text = re.sub(r'\s+\w+:%s="[^"]*"' % attr, "", text)
             text = re.sub(r'\s+%s="[^"]*"' % attr, "", text)
-        # Patch app label: android:label="@string/app_name" stays as resource ref
-        # (apktool handles resource refs correctly)
+
+        # CRITICAL FIX for INSTALL_PARSE_FAILED_UNEXPECTED_EXCEPTION:
+        # The Play Store source manifest has these attributes that force
+        # Android to demand the original chrome__module/on_demand__module
+        # splits EXACTLY as Google signed them. When SAI tries to install
+        # our re-signed splits, Android rejects the whole bundle.
+        # Strip them so the clone installs as a normal split-APK bundle.
+        text = re.sub(r'\s+n1:isSplitRequired="[^"]*"', "", text)
+        text = re.sub(r'\s+n1:requiredSplitTypes="[^"]*"', "", text)
+        text = re.sub(r'\s+n1:splitTypes="[^"]*"', "", text)
+        text = re.sub(r'\s+n1:isolatedSplits="[^"]*"', "", text)
+        # Same for non-namespaced form
+        text = re.sub(r'\s+isSplitRequired="[^"]*"', "", text)
+        text = re.sub(r'\s+requiredSplitTypes="[^"]*"', "", text)
+        text = re.sub(r'\s+splitTypes="[^"]*"', "", text)
+        text = re.sub(r'\s+isolatedSplits="[^"]*"', "", text)
         manifest.write_text(text, encoding="utf-8", errors="surrogateescape")
+
+    # CRITICAL FIX for "name did not change": patch the app_name string
+    # in strings.xml. The manifest has android:label="@string/app_name",
+    # which resolves to @string/app_cloak_name, which is "Quetta".
+    # We patch BOTH strings.xml and any localized variants to the clone name.
+    clone_label = clone_label or name
+    for strings_xml in decoded_dir.rglob("strings.xml"):
+        try:
+            text = strings_xml.read_text(encoding="utf-8", errors="surrogateescape")
+            # Replace app_cloak_name value (the actual displayed name)
+            # Match: <string name="app_cloak_name">Quetta</string>
+            text = re.sub(
+                r'(<string name="app_cloak_name">)[^<]*(</string>)',
+                r'\g<1>%s\g<2>' % re.escape(clone_label),
+                text)
+            # Also replace app_name if it's a literal (not @string/...)
+            text = re.sub(
+                r'(<string name="app_name">)(?!@string)[^<]*(</string>)',
+                r'\g<1>%s\g<2>' % re.escape(clone_label),
+                text)
+            strings_xml.write_text(text, encoding="utf-8", errors="surrogateescape")
+        except Exception:
+            pass
 
     # --- Patch apktool.yml if it has renameManifestPackage ---
     yml = decoded_dir / "apktool.yml"
