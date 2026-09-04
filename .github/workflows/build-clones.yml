@@ -142,7 +142,7 @@ jobs:
   build:
     needs: prepare
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       max-parallel: 10
@@ -164,11 +164,11 @@ jobs:
             yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" "build-tools;34.0.0" > /dev/null
           fi
 
-      - name: Install apktool
+      - name: Install APKEditor (ARSCLib-based, same as BFE)
         run: |
           set -euo pipefail
-          wget -q https://github.com/iBotPeaches/Apktool/releases/download/v2.9.3/apktool_2.9.3.jar -O /usr/local/bin/apktool.jar
-          echo "APKTOOL_JAR=/usr/local/bin/apktool.jar" >> "$GITHUB_ENV"
+          wget -q https://github.com/REAndroid/APKEditor/releases/download/V1.4.9/APKEditor-1.4.9.jar -O /usr/local/bin/APKEditor.jar
+          echo "APKEDITOR_JAR=/usr/local/bin/APKEditor.jar" >> "$GITHUB_ENV"
 
       - name: Get source APK
         uses: actions/download-artifact@v4
@@ -208,7 +208,7 @@ jobs:
           APKSIGNER=$(ls "$SDK"/build-tools/*/apksigner | sort -V | tail -1)
           AAPT2=$(ls "$SDK"/build-tools/*/aapt2 | sort -V | tail -1)
           F=""
-          for c in "dist/${{ matrix.name }}.apks" "dist/${{ matrix.name }}.apk"; do
+          for c in "dist/${{ matrix.name }}.apk" "dist/${{ matrix.name }}.apks"; do
             if [ -f "$c" ]; then F="$c"; break; fi
           done
           if [ -z "$F" ]; then
@@ -259,6 +259,7 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --title "APK clones (run ${{ github.run_number }})" \
             --notes "One installable clone per name in names.txt.
-          .apk = standalone clone; .apks = clone bundle (base + splits) - install with the free 'SAI' app.
+          Each clone is a single standalone .apk — install directly, no SAI needed.
+          Built with APKEditor (ARSCLib) — same library BFE uses.
           Verify downloads against SHA256SUMS.txt before installing."
           gh release upload "$TAG" "${files[@]}" dist/SHA256SUMS.txt --clobber --repo "$GITHUB_REPOSITORY"
