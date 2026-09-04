@@ -7,10 +7,12 @@ installable clone per line of `names.txt` (37 names). Every clone:
 |---|---|
 | Application/package id | `net.quetta.browser.<lowercased name>` |
 | Launcher/app name | the name exactly as written in `names.txt` |
-| Provider authorities | re-prefixed with the new package (incl. multi-authority `;` lists) |
-| Play distribution markers | removed (`splits.required`, stamp meta-data, `requiredSplitTypes`) |
-| Signature | re-signed (v2/v3) with the project keystore |
-| Everything else | untouched — binary-level patch, no decompile/recompile |
+| Provider authorities | re-prefixed with the new package |
+| Permission names | re-prefixed (declarations + references) |
+| Signature | re-signed (v2/v3) with per-clone persistent keystore |
+| Build.* fields | **spoofed per clone** (MODEL, MANUFACTURER, BRAND, FINGERPRINT, etc.) |
+| V8 snapshots | preserved (32-bit + 64-bit) for Chromium renderer |
+| Output | single standalone `.apk` (no SAI needed) |
 
 Because each clone has a unique package id **and** unique provider authorities,
 all clones install side by side with the original app.
@@ -188,66 +190,89 @@ and persistence automatically.
    commits the keystores back to the repo, then builds all clones.
 5. New clones appear in the next release.
 
-## Device identity (IMEI / Android ID / SIM / MAC addresses) — HONEST version
+## Device identity spoofing — what's implemented
 
-**A cloned APK cannot change device identifiers by itself.** This is not a
-limitation of this cloner — it's a fundamental Android security boundary.
-Any tool that claims to spoof IMEI/MAC/etc. purely via APK patching is lying
-to you; what they actually do is bundle an Xposed/LSPosed hook module
-(which needs root) or use the in-process Java API hooks (which only affect
-what the app *sees*, not what the OS/network/other apps see).
+### Build.* fields (NOW SPOOFED per clone) ✅
 
-### What works WITHOUT root (already true for every clone)
+Every clone gets a **unique device profile** generated deterministically from
+the clone name. The cloner patches all `Build.MODEL`, `Build.MANUFACTURER`,
+`Build.BRAND`, `Build.DEVICE`, `Build.PRODUCT`, `Build.FINGERPRINT`,
+`Build.DISPLAY`, `Build.HOST`, `Build.USER`, `Build.ID`, `Build.SERIAL`,
+`Build.BOARD`, `Build.TAGS`, `Build.TYPE`, `Build.INCREMENTAL`,
+`Build.VERSION.RELEASE`, `Build.VERSION.INCREMENTAL`,
+`Build.VERSION.SECURITY_PATCH` references in the DEX code via smali patching.
 
-| Identifier | Behavior |
+This is the same technique AppCloner uses — every `sget-object` instruction
+that reads a `Build.*` field is replaced with a `const-string` of the spoofed
+value. The app reads the spoofed value instead of the real device info.
+
+Example: clone "ZetaLite" might get a Sony XQ-CT72 profile, while clone
+"AcxIrnoy" gets a Samsung SM-S921B profile. Each clone's device fingerprint
+is unique and stable across reinstalls.
+
+### What's already handled by the OS (no patching needed) ✅
+
+| Identifier | How it's handled |
 |---|---|
-| `Settings.Secure.ANDROID_ID` | Android 8+ automatically scopes this **per app-signing-key**. Since every clone is re-signed with a different keystore (or the same keystore but different package), each clone already gets a unique `ANDROID_ID` automatically. |
-| Wi-Fi MAC (as seen by apps) | Android 10+ returns `02:00:00:00:00:00` to all apps by default. Apps cannot read the real hardware MAC. |
-| Bluetooth MAC (as seen by apps) | Same — Android 6+ returns `02:00:00:00:00:00` to all apps. |
-| `Build.MODEL`, `Build.MANUFACTURER`, etc. | These are read-only system properties. The app reads them via `Build.MODEL` etc., which the JIT often inlines at compile time. Reflection patching is unreliable on Android 9+. |
+| `ANDROID_ID` | **Already unique per clone** — Android 8+ scopes it per app-signing-key. Each clone has its own keystore → automatically gets a unique ANDROID_ID. |
+| Wi-Fi MAC | **Already randomized** — Android 6+ returns `02:00:00:00:00:00` to all apps. The OS handles this. |
+| Bluetooth MAC | **Already randomized** — same as Wi-Fi MAC. |
+| IMEI / MEID | **Already blocked** — Android 10+ returns `null` for all third-party apps (requires system-only `READ_PRIVILEGED_PHONE_STATE`). |
+| SIM serial / IMSI / phone number | **Already blocked** — returns `null` for third-party apps since Android 10. |
 
-So out of the box, every clone already has:
-- ✅ A unique `ANDROID_ID` (Android 8+)
-- ✅ A randomized Wi-Fi MAC visible to the app (Android 10+)
-- ✅ A randomized Bluetooth MAC visible to the app (Android 6+)
-- ✅ A unique package id, so app-local data (SharedPreferences, databases) is per-clone
+### What CANNOT be spoofed (impossible without root) ❌
 
-### What CANNOT be done via APK patching (requires LSPosed + root)
+| Feature | Why | Workaround |
+|---|---|---|
+| **Play Integrity / SafetyNet** | Re-signed APKs fail `UNRECOGNIZED_VERSION`. Google also requires Play Store installation as of May 2025. | None — clones will always fail this. |
+| **Banking apps** | Check Play Integrity | Won't work as clones |
+| **Google Services (GMS)** | Check signature | Won't work as clones |
+| **Real IMEI** (as seen by cell tower) | Hardware radio ID, OS-controlled | Only via LSPosed + root |
+| **Real MAC** (as seen by Wi-Fi AP) | OS returns dummy since Android 6 | Already handled by OS |
+| **Hardware-backed attestation** | Android 13+ proves bootloader is locked | Cannot be spoofed |
 
-| Identifier | Why |
-|---|---|
-| Real IMEI / MEID / ESN | Hardware radio identifier. Apps with `READ_PRIVILEGED_PHONE_STATE` (system apps only since Android 11) read it directly from the modem. The OS doesn't expose a setter. |
-| Real SIM serial / phone number / IMSI / carrier name | Read directly from the SIM card by the OS. No app API to override the return value without root hooks. |
-| Real Wi-Fi MAC (as seen by access points) | Set by the Wi-Fi driver, not by Java. Apps can't touch it. |
-| Real Bluetooth MAC (as seen by paired devices) | Set by the Bluetooth stack at the OS level. |
-
-### How to spoof these (LSPosed module, rooted phones)
-
-Install **LSPosed** (Zygisk edition is easiest) and one of these modules:
-
-- **DeviceID Masker** — per-app IMEI / Android ID / MAC / Build fingerprint profiles
+For full device spoofing (real IMEI, real MAC, Play Integrity bypass), you need
+**LSPosed + root**. Install LSPosed and one of:
+- **DeviceID Masker** — per-app IMEI / Android ID / MAC / Build profiles
 - **XPrivacyLua** — comprehensive per-app identifier spoofing
-- **Device Emulator Pro** — full device identity spoofing (root required)
+- **Device Emulator Pro** — full device identity spoofing
 
-Enable the module for each clone package (`net.quetta.browser.zetalite`,
-`net.quetta.browser.acxirnoy`, etc.), assign a different profile per clone,
-and the spoofed values are returned to that clone only.
+## Clone safety
 
-### Work profile (no root)
+### Data isolation ✅
 
-If you don't want to root, use **Island** or **Shelter** to run each clone
-inside a separate work profile. Each work profile has its own `ANDROID_ID`
-and its own app storage. Limitation: you can only have one work profile per
-user, so this doesn't scale to 37 clones — but it works great for 1–3.
+Each clone has a unique package name → unique UID → kernel-enforced sandbox.
+The clone **cannot** read the original app's private data. The original app
+**cannot** read the clone's data. This is enforced by the Linux kernel at the
+UID level — same security boundary as any other app on Android.
 
-### Emulators (LDPlayer / MuMu / AVD)
+### Keystore security ✅
 
-Emulators let you change IMEI, Android ID, MAC, and build fingerprint per
-instance from the emulator settings. Best option if you're running clones
-on emulators rather than a real phone.
+Each clone has its **own unique signing key**, committed to the repo at
+`keystores/<name>.keystore`. If one key is ever compromised, only that one
+clone can be hijacked — the other 36 are safe. The keystore password is
+`android` (not secret) — the keystore is a signing identity, not encryption.
 
-- The biggest web fingerprint after that is your **IP address** — use a
-  different proxy/VPN exit per clone if the site tracks it.
+**If you want maximum security**: make the repo **private** so only you can
+access the keystores. Anyone with the keystore can sign "updates" to that clone.
+
+### Network security ✅
+
+Clones use the same network security config as the original app. HTTPS
+certificate validation works the same way. No man-in-the-middle risk.
+
+### Play Protect ⚠️
+
+Google Play Protect sometimes flags re-signed apps as "unknown." To install:
+1. Temporarily disable Play Protect during install
+2. Or tap "Install anyway" when Play Protect warns
+3. Play Protect will not remove the clone after installation
+
+### What's NOT safe
+
+- **Don't use clones for banking** — they fail Play Integrity
+- **Don't use clones for Google Services** — they fail signature checks
+- **Don't share your keystores publicly** — anyone can sign malicious "updates"
 
 ## If the phone says "app is not compatible"
 
